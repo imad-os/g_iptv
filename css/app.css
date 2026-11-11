@@ -98,7 +98,12 @@ html.video #bg { display: none; }
 .cat .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cat .n { font-size: 24px; color: var(--muted); }
 .cat svg { width: 30px; height: 30px; fill: var(--accent2); flex: none; }
-.cat.sel { background: var(--card); }
+.cat.sel { background: var(--accent); color: var(--on-accent); }
+.cat.sel .n, .cat.sel svg { color: var(--on-accent); fill: var(--on-accent); }
+/* still choosing (focus in the list of categories): the open one keeps an accent bar and accent text */
+.cat.cur { box-shadow: inset 6px 0 0 var(--accent); color: var(--accent2); }
+.cat.cur svg { fill: var(--accent2); }
+html[dir=rtl] .cat.cur { box-shadow: inset -6px 0 0 var(--accent); }
 .vi.f .cat { background: var(--accent); color: var(--on-accent); }
 .vi.f .cat .n, .vi.f .cat svg { color: var(--on-accent); fill: var(--on-accent); }
 .side .pin { color: var(--warn); }
@@ -324,7 +329,6 @@ html.video .pv-box .pv-msg { background: transparent; }
 #player .hidden { display: none !important; }
 #player .pl-msg { background: var(--bar); border: 2px solid var(--line); border-radius: 22px; padding: 26px 40px; max-width: 1100px; }
 #player .pl-center .spin + div { margin-top: 10px; background: var(--bar); padding: 10px 24px; border-radius: 16px; }
-#player .pl-hints { position: static; margin-top: 18px; height: 44px; padding: 0; }
 #player .pl-live .epg { display: flex; gap: 50px; margin: 0; }
 #player .pl-live .epg .it { flex: 1; min-width: 0; margin: 0; }
 #player .favtag svg { width: 40px; height: 40px; fill: #ff4d6d; }

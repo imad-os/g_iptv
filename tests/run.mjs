@@ -260,6 +260,9 @@ async function partLive(t) {
   const bi = cats.indexOf('Big list');
   await key('ArrowDown', bi); await page.waitForTimeout(350); await key('Enter');
   await page.waitForFunction(() => UI.top().items.length === 4000 && UI.top().zone === 'ch');
+  await page.waitForTimeout(100);
+  const selc = await page.evaluate(() => { const c = document.querySelector('.screen.on .cats .cat.sel'), a = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(); const t = document.createElement('div'); t.style.color = a; document.body.appendChild(t); const ac = getComputedStyle(t).color; t.remove(); return { name: c && c.querySelector('.nm').textContent, bg: c && getComputedStyle(c).backgroundColor, ac, n: document.querySelectorAll('.screen.on .cats .cat.sel').length }; });
+  check(selc.name === 'Big list' && selc.n === 1 && selc.bg === selc.ac, 'the open category stays lit in the accent colour while the focus is in its channels ' + JSON.stringify(selc));
   await key('ArrowDown', 5);
   await key('Enter');
   await page.waitForFunction(() => Player.mode() === 'preview' && Player.state().playing, null, { timeout: 20000 });
@@ -292,6 +295,8 @@ async function partLive(t) {
   await key('Enter');
   await page.waitForFunction(() => /Evening news 10/.test(document.querySelector('.pl-live').textContent), null, { timeout: 5000 });
   await shot('17-live-full-controls');
+  const hv = await page.evaluate(() => [...document.querySelectorAll('.hints')].filter((h) => h.offsetParent !== null && h.getBoundingClientRect().height > 0).length);
+  check(hv === 0, 'no row of button hints on screen while the player is on (' + hv + ' visible)');
   await key('Escape'); await key('Escape');
   await page.waitForFunction(() => Player.mode() === 'preview');
   const back = await page.evaluate(() => ({ idx: UI.top().lv.index, mode: Player.mode(), playing: Player.state().playing }));

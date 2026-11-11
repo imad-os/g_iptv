@@ -34,11 +34,12 @@ const UI = (() => {
   function replace(s) { const old = stack.pop(); if (old) { old.root.classList.remove('on'); if (old.hide) old.hide(); if (old.destroy) old.destroy(); } push(s); }
   function input(a, repeat) {
     const m = modals[modals.length - 1];
-    if (m) return m.input(a, repeat);
+    if (m) { const r = m.input(a, repeat); return a === 'back' ? true : r; }
     const t = top();
     if (!t) return;
-    if (a === 'back' && t.input(a, repeat) !== true && stack.length > 1) { pop(); return; }
-    if (a !== 'back') t.input(a, repeat);
+    // Back: true when something was closed; false on the first screen (nothing left to close: My PC shows its menu)
+    if (a === 'back') { if (t.input(a, repeat) === true) return true; if (stack.length > 1) { pop(); return true; } return false; }
+    t.input(a, repeat);
   }
 
   /* ---------- a menu: a title and a list of choices (OK runs it; Back closes) ---------- */

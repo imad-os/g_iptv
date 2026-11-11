@@ -301,7 +301,9 @@ class BrowseScreen {
     n.__ic.innerHTML = c.special ? svg({ all: 'grid', fav: 'heart', recent: 'clock', foryou: 'star' }[c.special]) : c.pinned ? svg('pin') : '';
     n.__nm.textContent = c.name;
     n.__n.textContent = c.n >= 0 ? c.n : '';
+    // the open category: full accent once the focus is in its list, an accent bar while the focus is still in the categories
     n.__c.classList.toggle('sel', i === this.ci && this.zone !== 'cats');
+    n.__c.classList.toggle('cur', i === this.ci && this.zone === 'cats');
   }
   drawPost(i, n, full) {
     const it = this.items[i];
@@ -727,6 +729,7 @@ class LiveScreen {
     if (!force && !this.q && this.shown === c.id) return;
     this.q = '';
     LiveScreen.lastCat = c.id;
+    this.ci = this.cv.index;
     if (Catalog.partial('live') && !c.special && c.n < 0) {
       this.setItems([], T('loading'), c.name);
       try { await Catalog.loadCat('live', c.id); } catch (e) { this.setItems([], errText(e), c.name); return; }

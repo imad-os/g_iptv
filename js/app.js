@@ -14,7 +14,7 @@ const APP_VERSION = '1.0.0';
     r.style.top = Math.round((window.innerHeight - 1080 * s) / 2) + 'px';
   }
   const log = window.__acts = [];
-  function act(a, repeat) { log.push(a); if (log.length > 60) log.shift(); try { UI.input(a, !!repeat); } catch (e) { report(e, { where: 'input ' + a }); } }
+  function act(a, repeat) { log.push(a); if (log.length > 60) log.shift(); try { return UI.input(a, !!repeat); } catch (e) { report(e, { where: 'input ' + a }); } }
 
   function onInput(a, pressed, repeat, dev) {
     if (!started) return;
@@ -25,7 +25,8 @@ const APP_VERSION = '1.0.0';
       return;
     }
     if (!pressed) return;
-    if (a === 'cancel') { if (!repeat) act('back'); return; }
+    // Back: false = nothing left to close here (the home screen): My PC (API 18) then shows its own menu
+    if (a === 'cancel') { if (!repeat && act('back') === false) return false; return; }
     if (a === 'pause') { if (!repeat) act('playPause'); return; }
     if (a === 'menu') { if (!repeat) act('menu'); return; }
     if (/^(up|down|left|right|pageUp|pageDown|mediaFf|mediaRew)$/.test(a)) { act(a, repeat); return; }

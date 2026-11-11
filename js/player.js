@@ -303,7 +303,7 @@ const Player = (() => {
       '<div class="pl-center"></div><div class="pl-seek hidden"></div>' +
       '<div class="pl-banner hidden"><div class="no"></div><div class="lg"></div><div class="bd"><div class="ch"></div><div class="epg"></div></div></div>' +
       '<div class="pl-bot"><div class="pl-prog"><span class="t0"></span><div class="pl-bar"><i class="bf"></i><i class="th"></i></div><span class="t1"></span></div>' +
-      '<div class="pl-live"><div class="epg"></div></div><div class="pl-btns"></div><div class="hints pl-hints"></div></div>' +
+      '<div class="pl-live"><div class="epg"></div></div><div class="pl-btns"></div></div>' +
       '<div class="pl-next hidden"><div class="t1"></div><div class="t2"></div><div class="acts"><button class="btn primary f"></button><button class="btn"></button></div></div>' +
       '<div class="pl-list hidden"><h2></h2><div class="vl"></div></div>';
     ui = {
@@ -311,7 +311,7 @@ const Player = (() => {
       center: root.querySelector('.pl-center'), seek: root.querySelector('.pl-seek'), banner: root.querySelector('.pl-banner'),
       bot: root.querySelector('.pl-bot'), prog: root.querySelector('.pl-prog'), t0: root.querySelector('.t0'), t1: root.querySelector('.pl-prog .t1'),
       bar: root.querySelector('.pl-bar'), bf: root.querySelector('.pl-bar .bf'), th: root.querySelector('.pl-bar .th'), live: root.querySelector('.pl-live'),
-      btns: root.querySelector('.pl-btns'), hints: root.querySelector('.pl-hints'), next: root.querySelector('.pl-next'), list: root.querySelector('.pl-list')
+      btns: root.querySelector('.pl-btns'), next: root.querySelector('.pl-next'), list: root.querySelector('.pl-list')
     };
     if (tvOk()) {
       MyPC.video.on('time', (e) => { if (eng === TV) onTime(e.t, e.d); });
@@ -355,8 +355,7 @@ const Player = (() => {
     if (spec.fav && Store.isFav(spec.fav.kind, spec.fav.id)) { const s = document.createElement('span'); s.innerHTML = svg('heart'); s.className = 'favtag'; ui.tags.appendChild(s); }
     ui.prog.classList.toggle('hidden', !!spec.live);
     ui.live.classList.toggle('hidden', !spec.live);
-    UI.hints(ui.hints, spec.live ? [['b', T('hintOk')], ['ch', T('hintZap')], ['y', T('list')], ['x', T('hintFav')], ['plus', T('hintMenu')], ['a', T('hintBack')]]
-                                 : [['b', T('hintOk')], ['x', T('hintFav')], ['plus', T('hintTracks')], ['a', T('hintBack')]]);
+    // no row of button hints over the picture (owner request 2026-11-11): the controls say what they do
   }
   function drawProgress() {
     if (!uiOn || !spec || spec.live || !ui.bar) return;
