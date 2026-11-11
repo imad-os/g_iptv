@@ -3,7 +3,7 @@
  * shown in time with the video. Cues: [{ s, e, t }] in seconds, sorted. */
 'use strict';
 const Subs = (() => {
-  const SERVICE = 'https://f.geekspro.us';
+  const SERVICE = 'https://iptv-lists.mypc-app.workers.dev';
 
   function decode(buf, langHint) {
     const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf);

@@ -141,7 +141,7 @@ export async function routeAll(ctx, o) {
   });
   await ctx.route('http://lists.test/**', (r) => r.fulfill({ status: 200, headers: Object.assign({ 'Content-Type': 'audio/x-mpegurl' }, CORS), body: m3uText(o.m3uCount || 3000) }));
   await ctx.route('http://img.test/**', (r) => { stats.img++; return r.fulfill({ status: 200, headers: Object.assign({ 'Content-Type': 'image/png' }, CORS), body: PNG }); });
-  await ctx.route('https://f.geekspro.us/**', (r) => {
+  await ctx.route('https://iptv-lists.mypc-app.workers.dev/**', (r) => {
     if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: CORS });
     const u = new URL(r.request().url());
     stats.subs++;

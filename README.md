@@ -10,7 +10,7 @@ The IPTV app as an app installed on **My PC** (github.com/imad-os/g), Samsung TV
   video plane behind the page; in a browser it falls back to `<video>` + hls.js.
 - USB films and TV shows (`MyPC.usb`): films / shows / folders, clean names, next episode, subtitle files next
   to the video (`.srt .vtt .ass .ssa .sub`, `Movie.ar.srt`, a `Subs/` folder), Continue watching.
-- Subtitles found online (f.geekspro.us), Arabic Windows-1256 files, style, delay.
+- Subtitles found online (through the Cloudflare Worker iptv-lists.mypc-app.workers.dev), Arabic Windows-1256 files, style, delay.
 - One theme for the app and the player (Settings > Theme).
 - Remote: OK, Back, arrows, CH + / CH −, Play / Pause and the media keys; controllers: B OK, A back, X favorite,
   Y search, + options, L / R page.
