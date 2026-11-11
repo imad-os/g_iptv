@@ -37,7 +37,7 @@ const APP_VERSION = '1.0.0';
 
   MyPC.init({
     ownMenu: true,
-    keys: ['channel', 'media'],
+    keys: ['channel', 'media', 'buttons'],
     onInit(info) {
       setLang(info && info.lang);
       Store.init();
@@ -52,6 +52,21 @@ const APP_VERSION = '1.0.0';
           if (!pressed || !started || UI.modalOpen() && i !== 3) return;
           if (i === 3) act('fav'); else if (i === 2) act('search');
           else if (!MyPC.isHosted() && (i === 4 || i === 5)) act(i === 4 ? 'pageUp' : 'pageDown');
+        });
+      } catch (e) {}
+      // inside My PC (API 19): every remote button by name, mapped in Settings > Remote buttons (js/buttons.js)
+      try {
+        if (MyPC.buttons) MyPC.buttons.on((n, pressed, repeat) => {
+          if (!started || Buttons.listen(n, pressed)) return;
+          if (n === 'ok' || n === 'space') { onInput('confirm', pressed, repeat); return; }       // OK keeps hold = options
+          if (!pressed) return;
+          if (/^(up|down|left|right)$/.test(n)) { act(n, repeat); return; }
+          if (/^(play|pause|playPause)$/.test(n)) { if (!repeat) act('playPause'); return; }  // Play / Pause is always Play / Pause
+          const a = Buttons.actionFor(n, Player.mode() === 'full');
+          if (a) { if (!repeat || /^page/.test(a)) act(a, repeat); return; }
+          // a button with no action of its own keeps its usual job
+          const d = { chUp: 'pageUp', chDown: 'pageDown', pageUp: 'pageUp', pageDown: 'pageDown', ff: 'mediaFf', rew: 'mediaRew', next: 'mediaNext', prev: 'mediaPrev', stop: 'mediaStop' }[n];
+          if (d && (!repeat || /^(page|mediaFf|mediaRew)/.test(d))) act(d, repeat);
         });
       } catch (e) {}
       if (!MyPC.isHosted()) {

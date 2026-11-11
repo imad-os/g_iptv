@@ -20,6 +20,7 @@ function settingsScreen() {
     toggle('adult', T('adult'), () => { ['live', 'vod', 'series'].forEach((k) => Catalog.invalidate(k)); }),
     Object.assign(toggle('cache', T('cacheLists'), () => { if (!p().cache) Store.cacheClear(); }), { sub: T('cacheNote', { h: 12 }) }),
     { label: T('manageCats'), icon: 'list', action: () => UI.menu(T('manageCats'), [['live', 'manageLive'], ['vod', 'manageMovies'], ['series', 'manageSeries']].map((k) => ({ label: T(k[1]), action: async () => { if (await openKind(k[0])) UI.push(catScreen(k[0])); } }))) },
+    ...(Buttons.supported() ? [{ label: T('btnTitle'), sub: T('btnNote'), icon: 'grid', action: () => UI.push(Buttons.screen()) }] : []),
     { label: T('engine'), sub: T('engineNote'), icon: 'tv', value: () => T({ auto: 'engAuto', tv: 'engTv', web: 'engWeb' }[p().engine] || 'engAuto'),
       action: (r, scr) => UI.menu(T('engine'), ENGINES.map((k) => ({ label: T({ auto: 'engAuto', tv: 'engTv', web: 'engWeb' }[k]), checked: (p().engine || 'auto') === k, action: () => { Store.setPref('engine', k); if (scr && scr.v) scr.v.refresh(); } }))),
       side: (a) => { const i = Math.max(0, ENGINES.indexOf(p().engine || 'auto')); Store.setPref('engine', ENGINES[(i + (a === 'right' ? 1 : -1) + ENGINES.length) % ENGINES.length]); } },

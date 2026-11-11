@@ -431,6 +431,10 @@ const Player = (() => {
   function input(a, repeat) {
     if (!spec) return a === 'back' ? false : undefined;
     if (list) return listInput(a, repeat);
+    // Settings > Remote buttons: the player's own buttons
+    if (a === 'subs') { subsMenu(); return true; }
+    if (a === 'audio') { audioMenu(); return true; }
+    if (a === 'plMenu') { optionsMenu(); return true; }
     if (nextShown && (a === 'ok' || a === 'back')) { if (a === 'ok') playNext(); else { nextCancel = true; hideNext(); } return true; }
     const live = !!spec.live;
     if (a === 'back') {
