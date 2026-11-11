@@ -156,6 +156,8 @@ async function partPlayer(t) {
   await page.waitForFunction(() => Player.state().playing && Player.state().t > 1, null, { timeout: 20000 });
   const p1 = await page.evaluate(() => ({ eng: Player.state().engine, d: Player.state().d, ui: Player.state().ui, url: document.getElementById('vid').currentSrc }));
   check(p1.eng === 'web' && Math.round(p1.d) === 60 && /\/movie\/demo\/pass\/15000\.mp4$/.test(p1.url), 'it plays (web player outside a TV): 60 s film from the server ' + JSON.stringify(p1));
+  const tag = await page.evaluate(() => document.querySelector('#player .pl-tags').textContent);
+  check(/Web player/.test(tag), 'the player says which player plays it (Settings > Player = Auto, no TV player here) ' + tag);
   await shot('08-player-overlay');
   // seek: right x3 adds up to +30 s, one jump
   await key('Escape');                    // hide the controls
@@ -352,6 +354,19 @@ async function partThemes(t) {
   await key('Escape');
   const back = await page.evaluate(() => [document.documentElement.getAttribute('data-theme'), Store.prefs().theme]);
   check(live === 'cinema' && back[0] === 'ocean' && back[1] === 'ocean', 'the theme menu shows each theme while focused; Back keeps the old one ' + live + ' ' + back);
+  // Settings > Player: Auto / TV player / Web player (OK lists them, ◀ ▶ steps through them)
+  const er = await page.evaluate(() => [...document.querySelectorAll('.screen.on .li')].findIndex((x) => /^Player/.test(x.textContent)));
+  await page.evaluate((i) => UI.top().v.focus(i), er);
+  const e0 = await page.evaluate(() => document.querySelectorAll('.screen.on .li')[UI.top().v.index].textContent);
+  await key('Enter');
+  await page.waitForSelector('.menu .li');
+  const em = await page.evaluate(() => [...document.querySelectorAll('.menu .li')].map((x) => x.textContent).join(' | '));
+  await shot('22-settings-player');
+  await key('ArrowDown', 2); await key('Enter');
+  await page.waitForTimeout(150);
+  const e1 = await page.evaluate(() => [Store.prefs().engine, document.querySelectorAll('.screen.on .li')[UI.top().v.index].textContent]);
+  await page.evaluate(() => Store.setPref('engine', 'auto'));
+  check(/Auto/.test(e0) && /Auto/.test(em) && /TV player/.test(em) && /Web player/.test(em) && e1[0] === 'web' && /Web player/.test(e1[1]), 'Settings > Player: Auto (default), TV player, Web player ' + JSON.stringify([e0, em, e1]));
   await key('Escape');
 }
 

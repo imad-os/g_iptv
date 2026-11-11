@@ -5,7 +5,7 @@
 'use strict';
 const Store = (() => {
   const LIMIT = 56 * 1024, HIST_MAX = 150, FAV_MAX = 400;
-  const DEF = { theme: 'ocean', autoNext: true, remember: true, adult: false, cache: true, cols: 6, ua: '',
+  const DEF = { theme: 'ocean', autoNext: true, remember: true, adult: false, cache: true, cols: 6, ua: '', engine: 'auto',
                 sort: { live: 'default', vod: 'default', series: 'default' }, subs: { size: 'medium', color: 'white', bg: 'shadow', font: 'sans', pos: 'bottom' } };
   let prefs = null, pls = null, cur = '', per = {}, hist = null;
 

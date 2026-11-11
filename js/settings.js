@@ -4,6 +4,8 @@ const THEMES = [['ocean', '#1a9cf0', '#020a2a'], ['ruby', '#ef4444', '#120808'],
 function themeName(id) { return T('theme' + id[0].toUpperCase() + id.slice(1)); }
 function applyTheme(id) { document.documentElement.setAttribute('data-theme', THEMES.some((t) => t[0] === id) ? id : 'ocean'); }
 
+// the player: auto = the TV's own player (Samsung AVPlay, through My PC) when there is one, else the browser's; or one of them always
+const ENGINES = ['auto', 'tv', 'web'];
 function onOff(v) { return v ? T('on') : T('off'); }
 function settingsScreen() {
   const p = () => Store.prefs();
@@ -18,6 +20,9 @@ function settingsScreen() {
     toggle('adult', T('adult'), () => { ['live', 'vod', 'series'].forEach((k) => Catalog.invalidate(k)); }),
     Object.assign(toggle('cache', T('cacheLists'), () => { if (!p().cache) Store.cacheClear(); }), { sub: T('cacheNote', { h: 12 }) }),
     { label: T('manageCats'), icon: 'list', action: () => UI.menu(T('manageCats'), [['live', 'manageLive'], ['vod', 'manageMovies'], ['series', 'manageSeries']].map((k) => ({ label: T(k[1]), action: async () => { if (await openKind(k[0])) UI.push(catScreen(k[0])); } }))) },
+    { label: T('engine'), sub: T('engineNote'), icon: 'tv', value: () => T({ auto: 'engAuto', tv: 'engTv', web: 'engWeb' }[p().engine] || 'engAuto'),
+      action: (r, scr) => UI.menu(T('engine'), ENGINES.map((k) => ({ label: T({ auto: 'engAuto', tv: 'engTv', web: 'engWeb' }[k]), checked: (p().engine || 'auto') === k, action: () => { Store.setPref('engine', k); if (scr && scr.v) scr.v.refresh(); } }))),
+      side: (a) => { const i = Math.max(0, ENGINES.indexOf(p().engine || 'auto')); Store.setPref('engine', ENGINES[(i + (a === 'right' ? 1 : -1) + ENGINES.length) % ENGINES.length]); } },
     { label: T('userAgent'), value: () => p().ua ? p().ua.slice(0, 26) + (p().ua.length > 26 ? '…' : '') : T('auto'), icon: 'tv', action: async (r, scr) => { const v = await askText({ value: p().ua, kind: 'text', label: T('userAgent'), max: 300 }); if (v !== null && v !== undefined) { Store.setPref('ua', String(v).trim()); scr.v.refresh(); } } },
     { label: T('clearFavs'), icon: 'heart', action: () => UI.confirm(T('sure'), T('clearFavsQ'), T('remove'), () => { Store.clearFavs(); ['live', 'vod', 'series'].forEach((k) => Catalog.invalidate(k)); UI.toast(T('cleared')); }) },
     { label: T('clearHistory'), icon: 'clock', action: () => UI.confirm(T('sure'), T('clearHistQ'), T('remove'), () => { Store.clearHist(); UI.toast(T('cleared')); }) },

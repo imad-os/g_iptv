@@ -228,6 +228,9 @@ html.video .pv-box .pv-msg { background: transparent; }
 .menu h2 { margin: 0 0 18px; font-size: 36px; padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .menu .vl { position: relative; }
 .menu .li { min-height: 76px; font-size: 29px; }
+.menu .li .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
+.menu .li .nm small { font-size: 20px; margin-top: 2px; }
+.menu .li:has(small) { padding-top: 6px; padding-bottom: 6px; }
 .menu .li .ck { width: 34px; height: 34px; fill: var(--accent2); }
 .menu .li.f .ck { fill: var(--on-accent); }
 

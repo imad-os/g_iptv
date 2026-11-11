@@ -40,6 +40,8 @@ const Player = (() => {
     rect(el) { return MyPC.video.rect(el || null); },
     fit(m) { return MyPC.video.fit(m); },
     async tracks() {
+      // a USB file: never ask the TV's player (it froze My PC on an MKV when Subtitles was pressed); its default audio plays
+      if (spec && /^\/opt\/media\//.test(spec.url || '')) return { audio: [], text: [], cur: {}, file: true };
       const t = await MyPC.video.tracks();
       return { audio: (t.audio || []).map((a, i) => ({ index: a.index, label: Subs.langName(a.lang) + (a.channels > 2 ? ' ' + (a.channels === 6 ? '5.1' : a.channels === 8 ? '7.1' : a.channels + 'ch') : '') + (a.codec ? ' · ' + String(a.codec).replace(/^.*\//, '').toUpperCase() : ''), n: i + 1 })),
                text: (t.text || []).map((x, i) => ({ index: x.index, label: Subs.langName(x.lang), n: i + 1 })), cur: t.cur || {}, w: t.video && t.video.w, h: t.video && t.video.h };
@@ -206,7 +208,10 @@ const Player = (() => {
       drawSub(''); hideNext(); retry = 0; clearTimeout(retryT);
     }
     st.opened = false; st.playing = false; st.buffering = true; st.rate = 1;
-    eng = tvOk() ? TV : WEB;
+    const ne = pickEngine(s);
+    // the setting changed since the last video: the other player lets go first
+    if (eng && eng !== ne) { try { const p = eng.stop(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+    eng = ne;
     center('spin');
     drawInfo();
     try {
@@ -225,6 +230,16 @@ const Player = (() => {
       const code = (e && e.code) || 'player';
       onError(code === 'bad-request' ? 'format' : code);
     }
+  }
+  // Settings > Player: auto (the TV's player when there is one), tv, web. A USB file is a path on the TV: only the TV's player reads it
+  function pickEngine(s) {
+    const want = Store.prefs().engine || 'auto', usb = /^\/opt\/media\//.test(s.url || '');
+    if (usb || want !== 'web') {
+      if (tvOk()) { if (want === 'web' && usb && !s.__told) { s.__told = 1; UI.toast(T('engUsbTv')); } return TV; }
+      if (want === 'tv' && !s.__told) { s.__told = 1; UI.toast(T('engNoTv')); }
+      return WEB;
+    }
+    return WEB;
   }
   function stopEngine() {
     openSeq++;
@@ -356,6 +371,8 @@ const Player = (() => {
     if (spec.sub) ui.ttl.appendChild(el('small', '', spec.sub));
     clear(ui.tags);
     if (spec.live) ui.tags.appendChild(el('span', 'badge', T('live2')));
+    // which player plays it (Settings > Player)
+    if (eng) ui.tags.appendChild(el('span', 'badge eng', T(eng === TV ? 'engTvTag' : 'engWebTag')));
     if (spec.fav && Store.isFav(spec.fav.kind, spec.fav.id)) { const s = document.createElement('span'); s.innerHTML = svg('heart'); s.className = 'favtag'; ui.tags.appendChild(s); }
     ui.prog.classList.toggle('hidden', !!spec.live);
     ui.live.classList.toggle('hidden', !spec.live);
