@@ -4,7 +4,8 @@
  *   Usb.library(drive, onN)   { movies: [file], shows: [{ name, key, pic, eps: [file] }], all: n } (one walk, kept for the session)
  *   Usb.list(path)            a folder: [{ name, path, dir, size }] (videos and folders only)
  *   Usb.spec(file)            what the player needs: the file + the subtitle files next to it (read when chosen)
- *   Usb.picture(file, cb)     the poster next to a film (movie.jpg, poster.jpg, folder.jpg), as a blob: URL
+ *   Usb.picture(file, cb)     the poster next to a film (movie.jpg, poster.jpg, folder.jpg), else (Settings > Pictures from USB films)
+ *                             a picture taken from the film's first megabytes, kept on the device; as a blob: URL
  * file = { name, path, size, dir (folder path), title, year, show, season, ep } */
 'use strict';
 const Usb = (() => {
@@ -167,7 +168,7 @@ const Usb = (() => {
     try { here = await rawList(f.dir || f.path); } catch (e) { return ''; }
     const base = fold(stripExt(f.name || ''));
     const pic = (base && here.find((x) => !x.dir && PIC.test(ext(x.name)) && fold(stripExt(x.name)) === base)) || here.find((x) => !x.dir && /^(poster|folder|cover)\.(jpe?g|png|webp)$/i.test(x.name));
-    if (!pic || !(pic.size > 0) || pic.size > 3 * 1024 * 1024) return '';
+    if (!pic || !(pic.size > 0) || pic.size > 3 * 1024 * 1024) return f.name ? frame(f) : f.ep ? frame(f.ep) : '';
     const r = await MyPC.usb.read(pic.path, 0, pic.size - 1);
     const blob = new Blob([r.buf], { type: /png$/i.test(pic.name) ? 'image/png' : /webp$/i.test(pic.name) ? 'image/webp' : 'image/jpeg' });
     return small(blob);
@@ -185,6 +186,83 @@ const Usb = (() => {
     } catch (e) { /* not a picture this browser can read */ }
     return '';
   }
+
+  /* ---- a picture from the film itself (like other players), when no poster file is next to it ----
+   * The first FRAME_BYTES of the file go into a hidden muted <video> (a blob: copy, the drive is read once), a moment a few seconds
+   * in is drawn PIC_W wide. One at a time, never while a film is open, 8 s at most. Kept in IndexedDB (path + size) so the drive is read
+   * once per film. A file that was being read when the app stopped (the TV closed it) is never tried again (FRAME_TRY). */
+  const FRAME_BYTES = 4 * 1024 * 1024, FRAME_TRY = 'speedy_frame_try', FRAME_BAD = 'speedy_frame_bad';
+  const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; };
+  let bad = null;
+  function badSet() {
+    if (bad) return bad;
+    try { bad = new Set(JSON.parse(ls(FRAME_BAD) || '[]')); } catch (e) { bad = new Set(); }
+    const left = ls(FRAME_TRY);
+    if (left) { bad.add(left); ls(FRAME_TRY, null); saveBad(); }
+    return bad;
+  }
+  function saveBad() { ls(FRAME_BAD, JSON.stringify([...bad].slice(-200))); }
+  let dbP = null;
+  function db() {
+    if (!dbP) dbP = new Promise((res) => {
+      try { const r = indexedDB.open('speedy-frames', 1); r.onupgradeneeded = () => r.result.createObjectStore('f'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch (e) { res(null); }
+    });
+    return dbP;
+  }
+  async function dbDo(mode, fn) {
+    const d = await db();
+    if (!d) return null;
+    return new Promise((res) => { try { const t = d.transaction('f', mode), q = fn(t.objectStore('f')); t.oncomplete = () => res(q && q.result); t.onerror = t.onabort = () => res(null); } catch (e) { res(null); } });
+  }
+  function busyPlayer() { try { return typeof Player !== 'undefined' && Player.mode() !== 'off'; } catch (e) { return false; } }
+  async function frame(f) {
+    if (!Store.prefs().usbFrames || !f.path || !isVideo(f.name) || badSet().has(f.path)) return '';
+    const key = f.path + '|' + (f.size || 0);
+    const saved = await dbDo('readonly', (st) => st.get(key));
+    if (saved instanceof Blob) return saved.size ? URL.createObjectURL(saved) : '';
+    while (busyPlayer()) await new Promise((r) => setTimeout(r, 1000));
+    ls(FRAME_TRY, f.path);
+    let out = null;
+    try { out = await grab(f); } catch (e) { out = null; }
+    ls(FRAME_TRY, null);
+    if (out === 'later') return '';
+    // nothing usable (an MP4 with its index at the end, a codec the browser lacks): remembered as empty, never read again
+    await dbDo('readwrite', (st) => { st.put(out || new Blob([]), key); return null; });
+    return out ? URL.createObjectURL(out) : '';
+  }
+  async function grab(f) {
+    const n = f.size > 0 ? Math.min(f.size, FRAME_BYTES) : FRAME_BYTES;
+    const r = await MyPC.usb.read(f.path, 0, n - 1);
+    if (busyPlayer()) return 'later';
+    const src = URL.createObjectURL(new Blob([r.buf], { type: /^(mp4|m4v|mov)$/.test(ext(f.name)) ? 'video/mp4' : ext(f.name) === 'webm' ? 'video/webm' : '' }));
+    const v = document.createElement('video');
+    v.muted = true; v.preload = 'auto'; v.playsInline = true;
+    const ev = (name, ms) => new Promise((res) => { const t = setTimeout(() => res(false), ms); v.addEventListener(name, () => { clearTimeout(t); res(true); }, { once: true }); v.addEventListener('error', () => { clearTimeout(t); res(false); }, { once: true }); });
+    try {
+      v.src = src;
+      if (!await ev('loadeddata', 8000) || !v.videoWidth) return null;
+      // a moment a few seconds in (the very start is often black): the middle of what the first megabytes hold, 10 s at most
+      const end = v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0;
+      const at = Math.min(10, end * 0.6, (v.duration || end) * 0.6);
+      if (at > 0.5) { v.currentTime = at; if (!await ev('seeked', 5000)) return null; }
+      const w = PIC_W, h = Math.max(1, Math.round(PIC_W * v.videoHeight / v.videoWidth));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const g = c.getContext('2d');
+      g.drawImage(v, 0, 0, w, h);
+      // all black (a fade-in): no picture
+      const px = g.getImageData(0, 0, w, h).data;
+      let sum = 0;
+      for (let i = 0; i < px.length; i += 64) sum += px[i] + px[i + 1] + px[i + 2];
+      const out = sum / (px.length / 64) / 3 > 10 ? await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.8)) : null;
+      c.width = c.height = 0;
+      return out;
+    } finally {
+      v.removeAttribute('src'); try { v.load(); } catch (e) {}
+      URL.revokeObjectURL(src);
+    }
+  }
+
   function forget() { libs.clear(); dirs_.clear(); }
   return { available, drives, library, list, spec, picture, cleanName, episodeOf, isVideo, forget };
 })();

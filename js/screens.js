@@ -79,7 +79,7 @@ class HomeScreen {
   constructor() {
     this.root = screenEl('home', topHtml() + '<div class="welcome hidden"></div><div class="home-tiles"></div><div class="home-row-title"></div><div class="acct"></div><div class="home-row"></div><div class="home-actions"></div><div class="hints"></div>');
     this.zone = 0; this.ti = 0; this.ai = 0;
-    this.row = new VList(this.root.querySelector('.home-row'), { horizontal: true, itemW: 400, render: (i, n, full) => this.drawCw(i, n, full), onFocus: (i) => { const r = this.rec[i]; if (r) announce(r.name); } });
+    this.row = new VList(this.root.querySelector('.home-row'), { horizontal: true, itemW: 480, render: (i, n, full) => this.drawCw(i, n, full), onFocus: (i) => { const r = this.rec[i]; if (r) announce(r.name); } });
     this.rec = [];
     UI.hints(this.root.querySelector('.hints'), [['b', T('hintOk')], ['x', T('hintFav')], ['plus', T('hintMenu')], ['a', T('hintBack')]]);
   }
@@ -137,6 +137,12 @@ class HomeScreen {
     this.ti = Math.min(this.ti, Math.max(0, this.tiles.length - 1)); this.ai = Math.min(this.ai, this.acts.length - 1);
     this.account();
     this.paint();
+    // the buttons share the bottom row with the hints: longer words (French...) get a tighter row instead of overlapping
+    this.root.classList.remove('tight');
+    requestAnimationFrame(() => {
+      const h = this.root.querySelector('.hints').getBoundingClientRect(), a = ab.getBoundingClientRect();
+      if (this.hasPl && h.width && a.width && (h.right > a.left - 16 && a.right > h.left - 16)) this.root.classList.add('tight');
+    });
   }
   async account() {
     const a = this.root.querySelector('.acct');
@@ -160,6 +166,13 @@ class HomeScreen {
     n.__bi.style.width = (r.d ? Math.min(100, r.t / r.d * 100) : 0) + '%';
     n.__p.style.backgroundImage = '';
     if (full && r.icon) { const k = r.key; Net.image(r.icon, (u) => { if (u && this.rec[i] && this.rec[i].key === k && n.__i === i) n.__p.style.backgroundImage = 'url("' + u + '")'; }); }
+    // a USB film / show: its poster file, else a picture from the film (Usb.picture)
+    else if (full && r.kind === 'usb' && Usb.available()) {
+      const path = typeof r.x === 'string' && r.x ? r.x : r.key[1] !== '#' ? r.key.slice(1) : '';
+      const cut = path.lastIndexOf('/'), dir = path.slice(0, cut), name = path.slice(cut + 1), k = r.key;
+      if (path) Usb.picture(r.key[1] === '#' ? { name: '', dir: dir.replace(/\/Season[^/]*$/i, ''), path: dir, ep: { name, dir, path } } : { name, dir, path },
+        (u) => { if (u && this.rec[i] && this.rec[i].key === k && n.__i === i) n.__p.style.backgroundImage = 'url("' + u + '")'; });
+    }
   }
   paint() {
     const z = this.zones[this.zone];
@@ -886,7 +899,7 @@ class UsbScreen {
     n.__fv.style.display = 'none';
     n.__rt.style.display = f.year ? '' : 'none'; n.__rt.textContent = f.year || '';
     if (f.eps) { n.__rt.style.display = ''; n.__rt.textContent = T('episodes') + ' ' + f.eps.length; }
-    if (full) Usb.picture(f.eps ? Object.assign({}, f.eps[0], { name: '', dir: f.dir }) : f, (u) => { if (u && n.__i === i && this.items[i] === f) { n.__pic.style.backgroundImage = 'url("' + u + '")'; n.__ph.style.display = 'none'; n.__img = f; } });
+    if (full) Usb.picture(f.eps ? Object.assign({}, f.eps[0], { name: '', dir: f.dir, ep: f.eps[0] }) : f, (u) => { if (u && n.__i === i && this.items[i] === f) { n.__pic.style.backgroundImage = 'url("' + u + '")'; n.__ph.style.display = 'none'; n.__img = f; } });
   }
   drawRow(i, n) {
     const f = this.items[i];
@@ -971,7 +984,7 @@ class UsbScreen {
     if (f.eps) {
       const seasons = {};
       f.eps.forEach((e) => { (seasons[e.season] = seasons[e.season] || []).push(Object.assign({}, e, { num: e.ep, id: e.path, title: e.name })); });
-      UI.push(new SeriesScreen({ n: f.name, i: f.key, l: '' }, '', { key: f.key, seasons, picture: (cb) => Usb.picture(Object.assign({}, f.eps[0], { name: '' , dir: f.dir }), cb) }));
+      UI.push(new SeriesScreen({ n: f.name, i: f.key, l: '' }, '', { key: f.key, seasons, picture: (cb) => Usb.picture(Object.assign({}, f.eps[0], { name: '', dir: f.dir, ep: f.eps[0] }), cb) }));
       return;
     }
     playUsb(f, null, startOf('u' + f.path));

@@ -66,8 +66,15 @@ html.video #bg { display: none; }
 .tile.f .ic { fill: var(--on-accent); }
 .tile.f .ct { color: var(--on-accent); opacity: .85; }
 .home-row-title { position: absolute; left: 56px; top: 548px; font-size: 34px; font-weight: 600; color: var(--muted); }
-.home-row { position: absolute; left: 56px; right: 56px; top: 600px; height: 300px; }
-.home-actions { position: absolute; left: 56px; right: 56px; bottom: 96px; display: flex; gap: 22px; }
+.home-row { position: absolute; left: 56px; right: 56px; top: 600px; height: 380px; }
+/* the buttons share the bottom row with the button hints (imad 2026-11-11: more room above) */
+.home-actions { position: absolute; inset-inline-end: 56px; bottom: 16px; display: flex; gap: 16px; justify-content: flex-end; }
+.home-actions .btn { height: 64px; padding: 0 24px; font-size: 26px; gap: 10px; }
+.home-actions .btn svg { width: 28px; height: 28px; }
+.home .hints { left: auto; right: auto; inset-inline-start: 56px; }
+.home.tight .hints { gap: 18px; font-size: 22px; }
+.home.tight .home-actions { gap: 10px; }
+.home.tight .home-actions .btn { padding: 0 16px; font-size: 23px; }
 .acct { position: absolute; right: 56px; top: 548px; font-size: 26px; color: var(--muted); text-align: end; }
 .acct b { color: var(--text); font-weight: 600; }
 .acct .ok { color: var(--good); } .acct .bad { color: var(--bad); }
@@ -80,7 +87,9 @@ html.video #bg { display: none; }
 .cw .sub { font-size: 22px; padding: 0 18px 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cw .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: rgba(0,0,0,.5); }
 .cw .bar i { display: block; height: 100%; background: var(--accent); }
-.vi.f .cw { outline: 5px solid var(--focus); outline-offset: -5px; }
+.cw { position: relative; }
+/* the focus ring over the whole card (an outline was hidden under the picture: only its bottom showed) */
+.vi.f .cw::after { content: ''; position: absolute; inset: 0; border: 5px solid var(--focus); border-radius: inherit; pointer-events: none; z-index: 2; }
 
 /* ---------- hints (A B X Y + on screen) ---------- */
 .hints { position: absolute; left: 56px; right: 56px; bottom: 26px; height: 48px; display: flex; gap: 34px; align-items: center; font-size: 25px; color: var(--muted); }
@@ -308,7 +317,8 @@ html.video .pv-box .pv-msg { background: transparent; }
 .welcome { position: absolute; left: 56px; right: 56px; top: 170px; }
 .welcome h1 { font-size: 64px; margin: 0 0 20px; }
 .welcome .note { font-size: 32px; max-width: 1300px; }
-.home.nopl .home-actions { bottom: auto; top: 460px; }
+.home.nopl .home-actions { bottom: auto; top: 460px; inset-inline-start: 56px; justify-content: flex-start; }
+.home.nopl .home-actions .btn { height: 76px; padding: 0 38px; font-size: 30px; }
 .ico { display: inline-flex; width: 30px; flex: none; }
 .ico svg { width: 30px; height: 30px; fill: var(--accent2); }
 .vi.f .ico svg { fill: var(--on-accent); }

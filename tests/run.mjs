@@ -380,6 +380,18 @@ async function partArabic(browser) {
   await key('Enter');
   await page.waitForSelector('.home .home-tiles .tile');
   await shot('22-ar-home');
+  const ov = async (pg) => { await pg.waitForTimeout(150); return pg.evaluate(() => { const h = document.querySelector('.home .hints').getBoundingClientRect(), a = document.querySelector('.home .home-actions').getBoundingClientRect(); return { gap: Math.round(Math.max(a.left - h.right, h.left - a.right)), sameRow: Math.abs(h.top + h.height / 2 - (a.top + a.height / 2)) < 12 }; }); };
+  const arO = await ov(page);
+  check(arO.gap >= 0 && arO.sameRow, 'Arabic: the home buttons sit on the hints row, without overlapping them ' + JSON.stringify(arO));
+  {
+    const f = await open(browser, { locale: 'fr' });
+    await f.key('ArrowRight'); await f.key('Enter');
+    await f.page.waitForSelector('.home .home-tiles .tile');
+    const frO = await ov(f.page);
+    await f.shot('22-fr-home');
+    check(frO.gap >= 0 && frO.sameRow, 'French (longer words): the home buttons sit on the hints row, without overlapping them ' + JSON.stringify(frO));
+    await f.page.context().close().catch(() => {});
+  }
   await key('ArrowLeft'); await key('Enter');
   await page.waitForFunction(() => UI.top().constructor.name === 'BrowseScreen' && UI.top().items.length > 0, null, { timeout: 30000 });
   await key('Enter');

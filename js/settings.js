@@ -23,6 +23,7 @@ function settingsScreen() {
     { label: T('engine'), sub: T('engineNote'), icon: 'tv', value: () => T({ auto: 'engAuto', tv: 'engTv', web: 'engWeb' }[p().engine] || 'engAuto'),
       action: (r, scr) => UI.menu(T('engine'), ENGINES.map((k) => ({ label: T({ auto: 'engAuto', tv: 'engTv', web: 'engWeb' }[k]), checked: (p().engine || 'auto') === k, action: () => { Store.setPref('engine', k); if (scr && scr.v) scr.v.refresh(); } }))),
       side: (a) => { const i = Math.max(0, ENGINES.indexOf(p().engine || 'auto')); Store.setPref('engine', ENGINES[(i + (a === 'right' ? 1 : -1) + ENGINES.length) % ENGINES.length]); } },
+    Object.assign(toggle('usbFrames', T('usbFrames')), { sub: T('usbFramesNote') }),
     { label: T('userAgent'), value: () => p().ua ? p().ua.slice(0, 26) + (p().ua.length > 26 ? '…' : '') : T('auto'), icon: 'tv', action: async (r, scr) => { const v = await askText({ value: p().ua, kind: 'text', label: T('userAgent'), max: 300 }); if (v !== null && v !== undefined) { Store.setPref('ua', String(v).trim()); scr.v.refresh(); } } },
     { label: T('clearFavs'), icon: 'heart', action: () => UI.confirm(T('sure'), T('clearFavsQ'), T('remove'), () => { Store.clearFavs(); ['live', 'vod', 'series'].forEach((k) => Catalog.invalidate(k)); UI.toast(T('cleared')); }) },
     { label: T('clearHistory'), icon: 'clock', action: () => UI.confirm(T('sure'), T('clearHistQ'), T('remove'), () => { Store.clearHist(); UI.toast(T('cleared')); }) },
