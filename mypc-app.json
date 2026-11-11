@@ -1,0 +1,12 @@
+{
+  "mypc": 1,
+  "id": "speedy",
+  "name": "Speedy IPTV",
+  "type": "app",
+  "entry": "index.html",
+  "icon": "icon.png",
+  "version": "1.0.0",
+  "description": "Your IPTV lists on the TV: live channels with a programme guide, films and series, and the films and shows of a USB drive, played by the TV's own player.",
+  "touch": false,
+  "config": { "orientation": "landscape" }
+}
