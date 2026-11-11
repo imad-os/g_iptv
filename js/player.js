@@ -156,14 +156,17 @@ const Player = (() => {
 
   /* ---------------- events from either engine ---------------- */
   function onTime(t, d) {
+    const moved = Math.abs((+t || 0) - st.t) > 0.05;
     st.t = +t || 0; if (d > 0) st.d = d; st.at = performance.now();
+    // the time moves on: the picture plays, whatever buffering report came late or never ended (the loader must not stay on)
+    if (moved && st.opened && st.buffering && !retry) { st.buffering = false; st.playing = true; center(''); paintPlay(); armHide(); subsTimer(); }
     if (retry && st.playing) { retry = 0; }
     if (mode === 'full') { drawProgress(); maybeNext(); }
     if (Date.now() - lastSave > SAVE_EVERY) saveProgress();
   }
   function onState(s) {
     if (s === 'buffering') { st.buffering = true; }
-    else if (s === 'playing') { st.buffering = false; st.playing = true; st.ended = false; retry = 0; clearTimeout(retryT); center(''); }
+    else if (s === 'playing') { st.buffering = false; st.playing = true; st.ended = false; retry = 0; clearTimeout(retryT); center(''); armHide(); }
     else if (s === 'paused') { st.buffering = false; st.playing = false; saveProgress(); }
     else if (s === 'ended') { st.playing = false; st.ended = true; ended(); }
     else if (s === 'idle') { st.playing = false; }
@@ -213,6 +216,7 @@ const Player = (() => {
       if (mode === 'preview' && eng === TV) eng.rect(box).catch(() => {});
       st.buffering = false; st.playing = true;
       center(''); paintPlay(); drawProgress();
+      armHide();                       // the controls shown while it opened go away by themselves now that it plays
       if (!again) autoSubs(s);
       if (!s.live && !again) saveProgress(true);
       if (s.live) saveProgress(true);

@@ -830,7 +830,7 @@ async function playUsb(f, rest, start, show) {
                  icon: '', url: f.path, key: 'u' + f.path, start: start || 0, files: side.files,
                  meta: f.show ? { name: f.show, season: f.season, episode_num: f.ep } : { name: f.title || stripExt(f.name), year: f.year || '' }, metaKind: f.show ? 'series' : 'movie' };
   usbEpisode(spec, f);
-  if (rest && rest.length) spec.next = () => { const n = rest[0]; return n ? usbNextSpec(n, rest.slice(1), side) : null; };
+  if (rest && rest.length) spec.next = once(() => usbNextSpec(rest[0], rest.slice(1)));
   Player.play(spec);
 }
 // an episode of a USB show: Continue watching keeps the show once (key "u#<show>", the episode in x), never each episode
@@ -844,9 +844,11 @@ function usbNextSpec(f, rest) {
               meta: f.show ? { name: f.show, season: f.season, episode_num: f.ep } : { name: f.title }, metaKind: f.show ? 'series' : 'movie' };
   usbEpisode(s, f);
   Usb.spec(f).then((x) => { s.files.push.apply(s.files, x.files); }).catch(() => {});
-  if (rest.length) s.next = () => usbNextSpec(rest[0], rest.slice(1));
+  if (rest.length) s.next = once(() => usbNextSpec(rest[0], rest.slice(1)));
   return s;
 }
+// the player asks for the next episode several times (the "next in 10 s" card, the end): it is made, and its folder read, once
+function once(fn) { let v; return () => (v === undefined ? (v = fn() || null) : v); }
 
 class UsbScreen {
   constructor() {

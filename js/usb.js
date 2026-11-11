@@ -13,11 +13,25 @@ const Usb = (() => {
   const PIC = /^(jpg|jpeg|png|webp)$/;
   const SAMPLE = /(^|[\s._-])sample$/i;
   const MAX_DIRS = 600, MAX_FILES = 5000, MAX_DEPTH = 7;
-  const libs = new Map(), pics = new Map();
+  const libs = new Map(), pics = new Map(), dirs_ = new Map();
+  const DIR_KEEP = 300, PIC_KEEP = 120, PIC_W = 320;
 
   function available() { try { return MyPC.apiLevel >= 16 && !!(MyPC.info() && MyPC.info().bridges && MyPC.info().bridges.usb); } catch (e) { return false; } }
   async function drives() { return (await MyPC.usb.drives()) || []; }
-  async function rawList(path) { return (await MyPC.usb.list(path)) || []; }
+  // a folder read once per session (the walk, the posters, the subtitles and the next episode all ask for the same folders: each
+  // read is real work on the TV's drive, and the drive also feeds the film that plays)
+  function rawList(path) {
+    const k = String(path);
+    if (dirs_.has(k)) { const v = dirs_.get(k); dirs_.delete(k); dirs_.set(k, v); return v; }
+    const p = Promise.resolve(MyPC.usb.list(path)).then((l) => l || []);
+    dirs_.set(k, p);
+    p.catch(() => dirs_.delete(k));
+    if (dirs_.size > DIR_KEEP) dirs_.delete(dirs_.keys().next().value);
+    return p;
+  }
+  // while a film plays full screen nothing else reads the drive (it would make the picture stop and the TV freeze)
+  function playing() { try { return typeof Player !== 'undefined' && Player.mode() === 'full'; } catch (e) { return false; } }
+  async function quiet() { while (playing()) await new Promise((r) => setTimeout(r, 1000)); }
 
   function isVideo(n) { return VIDEO.test(ext(n)); }
   // "The.Movie.Name.2019.1080p.BluRay.x264.mkv" -> { title: 'The Movie Name', year: 2019 }
@@ -55,12 +69,14 @@ const Usb = (() => {
   // one walk of the drive (folders first, a few folders at a time so the TV stays smooth)
   async function library(drive, onN, again) {
     if (!again && libs.has(drive.path)) return libs.get(drive.path);
+    if (again) dirs_.clear();                   // Scan again: read every folder anew
     const movies = [], showMap = new Map();
     let dirs = 0, files = 0;
     const queue = [{ path: drive.path, parts: [], depth: 0 }];
     while (queue.length && dirs < MAX_DIRS && files < MAX_FILES) {
       const d = queue.shift();
       dirs++;
+      await quiet();
       let l;
       try { l = await rawList(d.path); } catch (e) { if (e && (e.code === 'denied' || e.code === 'gone')) throw e; continue; }
       for (const x of l) {
@@ -118,21 +134,57 @@ const Usb = (() => {
     return { files, picture: here.find((x) => !x.dir && PIC.test(ext(x.name)) && (fold(stripExt(x.name)) === base || /^(poster|folder|cover)$/i.test(stripExt(x.name)))) || null };
   }
 
-  // a poster: read from the drive (small files only), kept while the app is open
+  // a poster: read from the drive (small files only, one at a time, never while a film plays), made small (PIC_W wide) so a
+  // screen of posters does not keep big pictures in the TV's memory; the last PIC_KEEP are kept while the app is open
+  const picWait = [];
+  let picBusy = false;
   function picture(f, cb) {
-    const k = f.dir || f.path;
-    if (pics.has(k)) { const v = pics.get(k); if (v && v.then) v.then(cb); else cb(v); return; }
-    const p = (async () => {
-      let here;
-      try { here = await rawList(k); } catch (e) { return ''; }
-      const base = fold(stripExt(f.name || ''));
-      const pic = here.find((x) => !x.dir && PIC.test(ext(x.name)) && fold(stripExt(x.name)) === base) || here.find((x) => !x.dir && /^(poster|folder|cover)\.(jpe?g|png|webp)$/i.test(x.name));
-      if (!pic || !(pic.size > 0) || pic.size > 3 * 1024 * 1024) return '';
-      try { const r = await MyPC.usb.read(pic.path, 0, pic.size - 1); return URL.createObjectURL(new Blob([r.buf], { type: /png$/i.test(pic.name) ? 'image/png' : 'image/jpeg' })); } catch (e) { return ''; }
-    })();
-    pics.set(k, p);
-    p.then((u) => { pics.set(k, u); cb(u); });
+    const k = (f.dir || f.path) + '|' + fold(stripExt(f.name || ''));
+    if (pics.has(k)) { const v = pics.get(k); pics.delete(k); pics.set(k, v); cb(v); return; }
+    for (const j of picWait) if (j.k === k) { j.cbs.push(cb); return; }
+    picWait.push({ k, f, cbs: [cb] });
+    if (picWait.length > 40) picWait.splice(0, picWait.length - 40).forEach((j) => j.cbs.forEach((c) => c('')));
+    pump();
   }
-  function forget() { libs.clear(); }
+  async function pump() {
+    if (picBusy) return;
+    picBusy = true;
+    try {
+      while (picWait.length) {
+        await quiet();
+        const j = picWait.pop();                         // the newest first: what is on screen now
+        if (pics.has(j.k)) { j.cbs.forEach((c) => c(pics.get(j.k))); continue; }
+        let u = '';
+        try { u = await loadPic(j.f); } catch (e) { u = ''; }
+        pics.set(j.k, u);
+        if (pics.size > PIC_KEEP) { const old = pics.keys().next().value, ou = pics.get(old); pics.delete(old); if (ou) { try { URL.revokeObjectURL(ou); } catch (e) {} } }
+        j.cbs.forEach((c) => c(u));
+      }
+    } finally { picBusy = false; }
+  }
+  async function loadPic(f) {
+    let here;
+    try { here = await rawList(f.dir || f.path); } catch (e) { return ''; }
+    const base = fold(stripExt(f.name || ''));
+    const pic = (base && here.find((x) => !x.dir && PIC.test(ext(x.name)) && fold(stripExt(x.name)) === base)) || here.find((x) => !x.dir && /^(poster|folder|cover)\.(jpe?g|png|webp)$/i.test(x.name));
+    if (!pic || !(pic.size > 0) || pic.size > 3 * 1024 * 1024) return '';
+    const r = await MyPC.usb.read(pic.path, 0, pic.size - 1);
+    const blob = new Blob([r.buf], { type: /png$/i.test(pic.name) ? 'image/png' : /webp$/i.test(pic.name) ? 'image/webp' : 'image/jpeg' });
+    return small(blob);
+  }
+  async function small(blob) {
+    try {
+      const bm = await createImageBitmap(blob, { resizeWidth: PIC_W, resizeQuality: 'medium' });
+      const c = document.createElement('canvas');
+      c.width = bm.width; c.height = bm.height;
+      c.getContext('2d').drawImage(bm, 0, 0);
+      bm.close();
+      const out = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.85));
+      c.width = c.height = 0;
+      if (out) return URL.createObjectURL(out);
+    } catch (e) { /* not a picture this browser can read */ }
+    return '';
+  }
+  function forget() { libs.clear(); dirs_.clear(); }
   return { available, drives, library, list, spec, picture, cleanName, episodeOf, isVideo, forget };
 })();
