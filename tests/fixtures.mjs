@@ -145,7 +145,16 @@ export async function routeAll(ctx, o) {
     if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: CORS });
     const u = new URL(r.request().url());
     stats.subs++;
-    if (u.pathname.indexOf('/fetchSubtitles') === 0) return r.fulfill({ status: 200, headers: Object.assign({ 'Content-Type': 'application/json' }, CORS), body: JSON.stringify({ status: 'success', subtitles: [{ label: 'English · Film.2019.1080p', lang: 'en', file: 'http://subs.test/en.srt' }, { label: 'Arabic · Film.2019', lang: 'ar', file: 'http://subs.test/ar.srt' }] }) });
+    // the stream server's subtitle API (imad-os/fb cloudflare/README.md "Subtitles API for apps")
+    if (u.pathname.indexOf('/subtitleProviders') === 0) return r.fulfill({ status: 200, headers: Object.assign({ 'Content-Type': 'application/json' }, CORS), body: JSON.stringify({ status: 'success', default: 'subdl',
+      providers: [{ id: 'subdl', name: 'SubDL', usable: true }, { id: 'subsource', name: 'SubSource', usable: true }, { id: 'opensubtitles', name: 'OpenSubtitles.com', usable: false }, { id: 'limitprov', name: 'Limited', usable: true }] }) });
+    if (u.pathname.indexOf('/fetchSubtitles') === 0) {
+      let b = {}; try { b = JSON.parse(r.request().postData() || '{}'); } catch (e) {}
+      stats.subBody = b;
+      if (b.provider === 'subsource' && b.lang === 'fa') return r.fulfill({ status: 200, headers: Object.assign({ 'Content-Type': 'application/json' }, CORS), body: JSON.stringify({ status: 'success', provider: 'subsource', cached: false, subtitles: [], errors: [{ provider: 'subsource', name: 'SubSource', message: 'Invalid API key' }] }) });
+      if (b.provider === 'limitprov') return r.fulfill({ status: 429, headers: Object.assign({ 'Content-Type': 'application/json' }, CORS), body: JSON.stringify({ status: 'error', code: 'limit', message: 'SubDL: daily limit reached (2000 of 2000 requests)' }) });
+      return r.fulfill({ status: 200, headers: Object.assign({ 'Content-Type': 'application/json' }, CORS), body: JSON.stringify({ status: 'success', subtitles: [{ label: 'English · Film.2019.1080p', lang: 'en', file: 'http://subs.test/en.srt', provider: 'subdl', providerName: 'SubDL' }, { label: 'Arabic · Film.2019', lang: 'ar', file: 'http://subs.test/ar.srt', provider: 'subsource', providerName: 'SubSource' }] }) });
+    }
     if (u.pathname.indexOf('/downloadSubtitle') === 0) { const f = u.searchParams.get('url') || ''; return r.fulfill({ status: 200, headers: Object.assign({ 'Content-Type': 'application/octet-stream' }, CORS), body: /ar\.srt/.test(f) ? srtArabic1256() : Buffer.from(SRT_EN) }); }
     return r.fulfill({ status: 404, headers: CORS, body: '' });
   });

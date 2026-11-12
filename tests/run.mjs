@@ -193,6 +193,35 @@ async function partPlayer(t) {
   const style = await page.evaluate(() => { const s = getComputedStyle(document.getElementById('subs')); const sp = getComputedStyle(document.querySelector('#subs span')); return s.fontSize + ' ' + s.color + ' ' + sp.backgroundColor; });
   check(/56px rgb\(255, 225, 77\) rgba\(0, 0, 0, 0\.55\)/.test(style), 'subtitle style: size, colour, background ' + style);
   await shot('10-player-subtitles-style');
+  // online subtitles: provider list from our server (Auto = its default first), language + provider sent, the server's error shown as it said it
+  await page.evaluate(() => subProvMenu());
+  await page.waitForFunction(() => /SubSource/.test((document.querySelector('.menu') || {}).textContent || ''), null, { timeout: 5000 });
+  const pm = await page.evaluate(() => [...document.querySelectorAll('.menu .li .nm')].map((x) => x.textContent));
+  await shot('10b-subtitle-providers');
+  const si = pm.findIndex((x) => /^SubSource/.test(x));
+  await key('ArrowDown', si); await key('Enter');
+  await page.evaluate(() => Store.setPref('subLang', 'en'));
+  const sr = await page.evaluate(() => Subs.search({ name: 'Film', tmdb_id: '1', year: '2019' }, 'movie').then((l) => l.map((x) => x.lang + ':' + x.prov)));
+  check(/^Auto.*SubDL first/.test(pm[0]) && pm.some((x) => /^SubDL/.test(x)) && !pm.some((x) => /OpenSubtitles/.test(x)) && stats.subBody.provider === 'subsource' && stats.subBody.lang === 'en' && sr.join() === 'en:SubDL',
+    'subtitle providers come from our server (Auto = its default first, ones with no key left out); the provider and language are sent, results kept to that language ' + JSON.stringify({ pm, body: stats.subBody, sr }));
+  await page.evaluate(() => Store.setPref('subLang', 'fa'));
+  const pe = await page.evaluate(() => Subs.search({ name: 'Film' }, 'movie').then(() => 'none', (e) => e.message));
+  check(pe === 'SubSource: Invalid API key', 'nothing found and a provider failed: its own message is shown ' + pe);
+  await page.evaluate(() => { Store.setPref('subProv', 'limitprov'); Store.setPref('subLang', 'auto'); });
+  await key('Enter'); await key('m');
+  await page.waitForSelector('.menu', { timeout: 5000 });
+  await key('ArrowDown'); await key('Enter');
+  await page.waitForFunction(() => [...document.querySelectorAll('.menu .li')].some((x) => /online/.test(x.textContent)));
+  const idx2 = await page.evaluate(() => [...document.querySelectorAll('.menu .vi')].findIndex((x) => /online/.test(x.textContent)));
+  await key('ArrowDown', idx2); await key('Enter');
+  await page.waitForSelector('.dialog', { timeout: 10000 }).catch(() => {});
+  const em = await page.evaluate(() => (document.querySelector('.dialog') || {}).textContent || '');
+  await shot('10c-subtitle-server-error');
+  check(/daily limit reached \(2000 of 2000 requests\)/.test(em) && !('lang' in stats.subBody), 'the subtitle server\'s error is shown as it said it; Auto sends no language ' + JSON.stringify({ em, body: stats.subBody }));
+  await key('Enter');
+  await page.evaluate(() => { Store.setPref('subProv', 'auto'); Store.setPref('subProvName', ''); });
+  await page.waitForTimeout(300);
+  for (let i = 0; i < 3 && await page.evaluate(() => Player.state().ui || UI.modalOpen()); i++) { await key('Escape'); await page.waitForTimeout(250); }
   // Back closes the player; where it stopped is kept and shown on the home screen
   const stopAt = await page.evaluate(() => Player.state().t);
   await key('Escape');

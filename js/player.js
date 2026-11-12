@@ -693,7 +693,11 @@ const Player = (() => {
       const b = UI.busy(T('loading'));
       try { const c = await f.load(); b.close(); setCues(c, f.label); } catch (e) { b.close(); UI.toast(T('subsNone')); }
     } }));
-    if (spec.meta) items.push({ label: T('subsOnline'), action: onlineSubs });
+    if (spec.meta) {
+      items.push({ label: T('subsOnline'), action: onlineSubs });
+      items.push({ label: T('subLang'), value: subLangName(), action: () => subLangMenu() });
+      items.push({ label: T('subProv'), value: subProvName(), action: () => subProvMenu() });
+    }
     items.push({ label: T('subsStyle'), action: styleMenu });
     if (cues) items.push({ label: T('subsDelay'), value: (subDelay > 0 ? '+' : '') + subDelay.toFixed(1) + ' s', action: delayMenu });
     UI.menu(T('subtitles'), items);
@@ -702,15 +706,18 @@ const Player = (() => {
     let cancelled = false;
     const b = UI.busy(T('subsSearching'), () => { cancelled = true; });
     let res = [];
-    try { res = await Subs.search(spec.meta, spec.metaKind || 'movie'); } catch (e) { res = []; }
+    let fail = null;
+    try { res = await Subs.search(spec.meta, spec.metaKind || 'movie'); } catch (e) { res = []; fail = e; }
     if (cancelled) return;
     b.close();
+    // the server's own message (a provider's limit, a wrong key...), as it said it
+    if (fail) { UI.alert(T('subsErrTitle'), fail.code === 'network' || fail.code === 'timeout' ? T('subsErrNet') : fail.message || T('subsErrNet')); return; }
     if (!res.length) { UI.toast(T('subsNone')); return; }
     const want = LANG;
     res.sort((x, y) => (y.lang.slice(0, 2) === want) - (x.lang.slice(0, 2) === want));
-    UI.menu(T('subsOnline'), res.map((r) => ({ label: Subs.langName(r.lang), sub: r.name, action: async () => {
+    UI.menu(T('subsOnline'), res.map((r) => ({ label: Subs.langName(r.lang), sub: (r.prov ? r.prov + ' · ' : '') + r.name, action: async () => {
       const bb = UI.busy(T('loading'));
-      try { const c = await Subs.download(r); bb.close(); setCues(c, Subs.langName(r.lang)); } catch (e) { bb.close(); UI.toast(T('subsNone')); }
+      try { const c = await Subs.download(r); bb.close(); setCues(c, Subs.langName(r.lang)); } catch (e) { bb.close(); if (e.code === 'bad-data') UI.toast(T('subsNone')); else UI.alert(T('subsErrTitle'), e.code === 'network' || e.code === 'timeout' ? T('subsErrNet') : e.message || T('subsErrNet')); }
     } })), { rows: 8 });
   }
   function styleMenu() {

@@ -11,6 +11,11 @@ The IPTV app as an app installed on **My PC** (github.com/imad-os/g), Samsung TV
 - USB films and TV shows (`MyPC.usb`): films / shows / folders, clean names, next episode, subtitle files next
   to the video (`.srt .vtt .ass .ssa .sub`, `Movie.ar.srt`, a `Subs/` folder), Continue watching.
 - Subtitles found online (through the Cloudflare Worker iptv-lists.mypc-app.workers.dev), Arabic Windows-1256 files, style, delay.
+- Online subtitles: Settings > Subtitle language and Subtitle provider (also in the player's Subtitles menu), both Auto by
+  default. Auto language = Arabic, then English (the server decides); Auto provider = the admin's default provider. The provider
+  list comes from the Worker's `GET /subtitleProviders` (only providers with a key, kept 12 h); a search sends `lang` / `provider`
+  to `POST /fetchSubtitles/` only when not Auto. Every server error (`{ status: 'error', code, message }`, or a provider's
+  `errors` with no results) is shown to the user as the server wrote it. API: README "Subtitles API for apps" in imad-os/fb `cloudflare/`.
 - One theme for the app and the player (Settings > Theme).
 - Remote: OK, Back, arrows, CH + / CH −, Play / Pause and the media keys; controllers: B OK, A back, X favorite,
   Y search, + options, L / R page.

@@ -84,18 +84,58 @@ const Subs = (() => {
   }
 
   /* ---------- online (Speedy's own subtitle service, the same as the TV app) ---------- */
-  async function search(meta, kind) {
-    const r = await Net.get(SERVICE + '/fetchSubtitles/', { method: 'POST', type: 'json', timeout: 20000, json: { movieData: meta, movieType: kind } });
-    const d = r.body || {};
-    if (d.status !== 'success' || !Array.isArray(d.subtitles)) return [];
-    return d.subtitles.slice(0, 40).map((s) => ({ name: String(s.label || s.name || s.fileName || s.release || s.lang || 'Subtitle'), lang: String(s.lang || s.language || ''), url: String(s.file || s.url || s.link || s.download || '') }))
-      .filter((s) => s.url);
+  // the server's own error ({ status: 'error', code, message } or { error }) as an Error with its message (shown to the player as is)
+  function srvErr(r, fallback) {
+    const d = r && r.body && typeof r.body === 'object' ? r.body : null;
+    const m = d && (d.message || (typeof d.error === 'string' ? d.error : d.error && d.error.message));
+    if (m) return Net.err(String(d.code || (d.error && d.error.code) || 'server'), String(m).slice(0, 300), r.status);
+    return Net.err('server', fallback || ('HTTP ' + (r ? r.status : '?')), r && r.status);
   }
+  // Settings > Subtitles: language and provider, 'auto' = the server's choice (language: My PC's own first)
+  // providers: our server's public list, [{ id, name, def }] (kept 12 h)
+  let provCache = null;
+  async function providers(fresh) {
+    if (!fresh && provCache && Date.now() - provCache.at < 12 * 3600000) return provCache.list;
+    const r = await Net.get(SERVICE + '/subtitleProviders', { type: 'json', timeout: 15000 });
+    const d = r.body;
+    const arr = Array.isArray(d) ? d : d && Array.isArray(d.providers) ? d.providers : null;
+    if (!r.ok || !arr) throw srvErr(r, T('subsProvFail'));
+    const def = d && !Array.isArray(d) ? String(d.default || d.def || '') : '';
+    // { status, default: id | 'auto', providers: [{ id, name, usable, langs }] }: only the ones that can answer now (usable: a key, or none needed)
+    const list = arr.filter((x) => x && (x.id || x.name) && x.enabled !== false && x.usable !== false)
+      .map((x) => ({ id: String(x.id || x.name), name: String(x.name || x.title || x.id), def: !!x.default || String(x.id) === def }));
+    provCache = { at: Date.now(), list };
+    return list;
+  }
+  async function search(meta, kind) {
+    const p = Store.prefs(), lang = p.subLang && p.subLang !== 'auto' ? p.subLang : '', prov = p.subProv && p.subProv !== 'auto' ? p.subProv : '';
+    const body = { movieData: meta, movieType: kind };
+    if (lang) body.lang = lang;
+    if (prov) body.provider = prov;
+    const r = await Net.get(SERVICE + '/fetchSubtitles/', { method: 'POST', type: 'json', timeout: 20000, json: body });
+    const d = r.body || {};
+    if (!r.ok || d.status === 'error' || d.error) throw srvErr(r);
+    if (d.status !== 'success' || !Array.isArray(d.subtitles)) return [];
+    // nothing found and some providers failed: what they said ({ provider, name, message })
+    if (!d.subtitles.length && Array.isArray(d.errors) && d.errors.length) throw Net.err('provider_error', d.errors.slice(0, 3).map((e) => (e.name || e.provider ? (e.name || e.provider) + ': ' : '') + (e.message || '')).join('\n').slice(0, 400));
+    let out = d.subtitles.slice(0, 60).map((s) => ({ name: String(s.label || s.name || s.fileName || s.release || s.lang || 'Subtitle'), lang: String(s.lang || s.language || ''),
+      url: String(s.file || s.url || s.link || s.download || ''), prov: String(s.providerName || s.provider || s.source || '') })).filter((s) => s.url);
+    // a language asked for: only that one, when the server sent any of it (an older server ignores the field)
+    if (lang && out.some((s) => s.lang.slice(0, 2).toLowerCase() === lang)) out = out.filter((s) => s.lang.slice(0, 2).toLowerCase() === lang || norm(s.lang) === lang);
+    return out.slice(0, 40);
+  }
+  const L3 = { ara: 'ar', eng: 'en', fre: 'fr', fra: 'fr', spa: 'es', ger: 'de', deu: 'de', ita: 'it', por: 'pt', tur: 'tr', dut: 'nl', nld: 'nl', rus: 'ru', pol: 'pl', hin: 'hi', jpn: 'ja', kor: 'ko', chi: 'zh', zho: 'zh', per: 'fa', fas: 'fa', heb: 'he' };
+  function norm(c) { c = String(c || '').toLowerCase(); return L3[c] || c.slice(0, 2); }
   async function download(sub) {
     const r = await Net.get(SERVICE + '/downloadSubtitle/?url=' + encodeURIComponent(sub.url), { type: 'arraybuffer', timeout: 30000 });
-    if (!r.ok || !r.body) throw Net.err('network', 'HTTP ' + r.status);
-    const cues = parse(decode(r.body, (sub.lang || '').slice(0, 2).toLowerCase()), sub.name);
-    if (!cues.length) throw Net.err('bad-data', 'no cues');
+    if (!r.ok || !r.body) {
+      // the server's error comes as JSON
+      let j = null;
+      try { j = JSON.parse(new TextDecoder().decode(r.body)); } catch (e) {}
+      throw srvErr({ status: r.status, body: j });
+    }
+    const cues = parse(decode(r.body, norm(sub.lang)), sub.name);
+    if (!cues.length) throw Net.err('bad-data', T('subsNone'));
     return cues;
   }
   const LANGS = { ara: 'العربية', ar: 'العربية', eng: 'English', en: 'English', fre: 'Français', fra: 'Français', fr: 'Français', spa: 'Español', es: 'Español', ger: 'Deutsch', deu: 'Deutsch', de: 'Deutsch',
@@ -108,5 +148,7 @@ const Subs = (() => {
     const m = /^([a-z]{2,3})\b/i.exec(rest);
     return m ? m[1].toLowerCase() : '';
   }
-  return { decode, parse, at, search, download, langName, langOfFile };
+  // the languages offered in Settings (Auto = My PC's language first)
+  const PICK = ['ar', 'en', 'fr', 'es', 'de', 'it', 'pt', 'tr', 'nl', 'ru', 'pl', 'hi', 'ja', 'ko', 'zh', 'fa', 'he'];
+  return { decode, parse, at, search, download, providers, langName, langOfFile, PICK, norm };
 })();

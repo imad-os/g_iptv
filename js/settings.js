@@ -13,6 +13,8 @@ function settingsScreen() {
   const rows = [
     { label: T('theme'), sub: T('themeNote'), value: () => themeName(p().theme), icon: 'palette', action: () => themeMenu(), side: (a) => { const i = THEMES.findIndex((t) => t[0] === p().theme), n = THEMES[(i + (a === 'right' ? 1 : -1) + THEMES.length) % THEMES.length][0]; Store.setPref('theme', n); applyTheme(n); } },
     { label: T('subsStyle'), icon: 'subs', action: () => UI.push(subsStyleScreen()) },
+    { label: T('subLang'), sub: T('subLangNote'), icon: 'subs', value: () => subLangName(), action: (r, scr) => subLangMenu(() => scr && scr.v && scr.v.refresh()) },
+    { label: T('subProv'), sub: T('subProvNote'), icon: 'subs', value: () => subProvName(), action: (r, scr) => subProvMenu(() => scr && scr.v && scr.v.refresh()) },
     { label: T('gridSize'), value: () => String(p().cols), icon: 'grid', action: () => UI.menu(T('gridSize'), [5, 6, 7, 8].map((n) => ({ label: String(n), checked: p().cols === n, action: () => { Store.setPref('cols', n); UI.top().v.refresh(); } }))),
       side: (a) => { Store.setPref('cols', Math.max(5, Math.min(8, p().cols + (a === 'right' ? 1 : -1)))); } },
     toggle('autoNext', T('autoNext')),
@@ -47,6 +49,27 @@ function themeMenu() {
   m.v.o.render = (i, n, f) => { orig(i, n, f); const t = THEMES[i], s = el('div', 'swatch'); s.style.background = 'linear-gradient(135deg,' + t[1] + ' 0 50%,' + t[2] + ' 50% 100%)'; n.__v.insertBefore(s, n.__v.firstChild); };
   m.v.refresh();
   paint();
+}
+// online subtitles: the language and the provider (our server's list), 'auto' = the server's choice (Arabic, then English; its default provider)
+function subLangName() { const l = Store.prefs().subLang || 'auto'; return l === 'auto' ? T('subsAuto') : Subs.langName(l); }
+function subProvName() { const p = Store.prefs(); return !p.subProv || p.subProv === 'auto' ? T('subsAuto') : p.subProvName || p.subProv; }
+function subLangMenu(after) {
+  const cur = Store.prefs().subLang || 'auto';
+  UI.menu(T('subLang'), [{ label: T('subsAuto'), sub: T('subLangAuto'), checked: cur === 'auto', action: () => { Store.setPref('subLang', 'auto'); if (after) after(); } }]
+    .concat(Subs.PICK.map((c) => ({ label: Subs.langName(c), checked: cur === c, action: () => { Store.setPref('subLang', c); if (after) after(); } }))));
+}
+async function subProvMenu(after) {
+  let cancelled = false;
+  const b = UI.busy(T('loading'), () => { cancelled = true; });
+  let list;
+  try { list = await Subs.providers(true); } catch (e) { if (cancelled) return; b.close(); UI.alert(T('subsProvFail'), e.message || ''); return; }
+  if (cancelled) return;
+  b.close();
+  const cur = Store.prefs().subProv || 'auto', def = list.find((x) => x.def);
+  const set = (id, name) => { Store.setPref('subProv', id); Store.setPref('subProvName', name || ''); if (after) after(); };
+  if (!list.length) UI.toast(T('subsProvNone'));
+  UI.menu(T('subProv'), [{ label: T('subsAuto'), sub: def ? T('subsAutoDef', { x: def.name }) : T('subProvAuto'), checked: cur === 'auto', action: () => set('auto', '') }]
+    .concat(list.map((x) => ({ label: x.name, sub: x.def ? T('subsDefault') : '', checked: cur === x.id, action: () => set(x.id, x.name) }))));
 }
 function subsStyleScreen() {
   const s = () => Store.prefs().subs;
