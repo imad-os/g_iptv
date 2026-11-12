@@ -81,7 +81,7 @@ class HomeScreen {
     this.zone = 0; this.ti = 0; this.ai = 0;
     this.row = new VList(this.root.querySelector('.home-row'), { horizontal: true, itemW: 480, render: (i, n, full) => this.drawCw(i, n, full), onFocus: (i) => { const r = this.rec[i]; if (r) announce(r.name); } });
     this.rec = [];
-    UI.hints(this.root.querySelector('.hints'), [['b', T('hintOk')], ['x', T('hintFav')], ['plus', T('hintMenu')], ['a', T('hintBack')]]);
+    UI.hints(this.root.querySelector('.hints'), [['a', T('hintOk')], ['x', T('hintFav')], ['plus', T('hintMenu')], ['b', T('hintBack')]]);
   }
   build() {
     fillTop(this.root, Store.current() ? Store.current().name || Provider.baseOf(Store.current().host || '') || T('m3u') : '');
@@ -306,7 +306,7 @@ class BrowseScreen {
     this.chips.forEach((c) => { const b = el('div', 'chip'); b.innerHTML = svg(c.icon); c.lab = el('span', '', c.t); b.appendChild(c.lab); c.node = b; cb.appendChild(b); });
     this.chi = 0;
     this.pickSoon = debounce(() => this.pick(), 260);
-    UI.hints(this.root.querySelector('.hints'), [['b', T('hintOk')], ['x', T('hintFav')], ['y', T('hintSearch')], ['ch', T('hintPage')], ['plus', T('hintMenu')], ['a', T('hintBack')]]);
+    UI.hints(this.root.querySelector('.hints'), [['a', T('hintOk')], ['x', T('hintFav')], ['y', T('hintSearch')], ['ch', T('hintPage')], ['plus', T('hintMenu')], ['b', T('hintBack')]]);
   }
   drawCat(i, n) {
     const c = this.cats[i];
@@ -477,7 +477,7 @@ class MovieScreen {
     this.root = screenEl('details', '<div class="det-bg"></div><div class="det-shade"></div>' + topHtml() + '<div class="det"><div class="poster"></div><div class="info"><h1></h1><div class="meta"></div><div class="plot"></div><div class="more"></div><div class="acts"></div></div></div><div class="hints"></div>');
     this.root.querySelector('h1').textContent = it.n;
     this.bi = 0; this.info = null;
-    UI.hints(this.root.querySelector('.hints'), [['b', T('hintOk')], ['x', T('hintFav')], ['a', T('hintBack')]]);
+    UI.hints(this.root.querySelector('.hints'), [['a', T('hintOk')], ['x', T('hintFav')], ['b', T('hintBack')]]);
     if (it.l) Net.image(it.l, (u) => { if (u) this.root.querySelector('.poster').style.backgroundImage = 'url("' + u + '")'; });
     this.meta();
     this.load();
@@ -546,7 +546,7 @@ class SeriesScreen {
     this.root.querySelector('h1').textContent = it.n;
     this.seasons = []; this.si = 0; this.eps = []; this.zone = 'eps'; this.bi = 0; this.info = null;
     this.ev = new VList(this.root.querySelector('.eps'), { itemH: 92, render: (i, n, full) => this.drawEp(i, n, full), onFocus: (i) => this.sayEp(i) });
-    UI.hints(this.root.querySelector('.hints'), [['b', T('hintOk')], ['lr', T('season', { n: '' }).trim()], ['x', T('hintFav')], ['plus', T('hintMenu')], ['a', T('hintBack')]]);
+    UI.hints(this.root.querySelector('.hints'), [['a', T('hintOk')], ['lr', T('season', { n: '' }).trim()], ['x', T('hintFav')], ['plus', T('hintMenu')], ['b', T('hintBack')]]);
     if (it.l) Net.image(it.l, (u) => { if (u) this.root.querySelector('.poster').style.backgroundImage = 'url("' + u + '")'; });
     if (this.src && this.src.picture) this.src.picture((u) => { if (u) this.root.querySelector('.poster').style.backgroundImage = 'url("' + u + '")'; });
     this.load();
@@ -697,7 +697,7 @@ class LiveScreen {
     this.infoSoon = debounce(() => this.drawInfo(this.items[this.lv.index]), 500);
     this.root.querySelector('.pvh').textContent = T('pvHint');
     this.root.querySelector('.pv-msg').textContent = T('pvPick');
-    UI.hints(this.root.querySelector('.hints'), [['b', T('hintOk')], ['x', T('hintFav')], ['y', T('hintSearch')], ['ch', T('hintPage')], ['plus', T('hintMenu')], ['a', T('hintBack')]]);
+    UI.hints(this.root.querySelector('.hints'), [['a', T('hintOk')], ['x', T('hintFav')], ['y', T('hintSearch')], ['ch', T('hintPage')], ['plus', T('hintMenu')], ['b', T('hintBack')]]);
     this.epg = new Map();
     Player.onZap((s) => this.zapped(s));
   }
@@ -871,7 +871,7 @@ class UsbScreen {
     this.cv = new VList(this.root.querySelector('.side .cats'), { itemH: 84, render: (i, n) => this.drawTab(i, n), onFocus: (i) => { announce(this.tabs[i].name); this.pickSoon(); } });
     this.makeGrid('grid');
     this.pickSoon = debounce(() => this.pick(), 260);
-    UI.hints(this.root.querySelector('.hints'), [['b', T('hintOk')], ['plus', T('hintMenu')], ['a', T('hintBack')]]);
+    UI.hints(this.root.querySelector('.hints'), [['a', T('hintOk')], ['plus', T('hintMenu')], ['b', T('hintBack')]]);
   }
   makeGrid(kind) {
     if (this.gv) this.gv.destroy();

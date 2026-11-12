@@ -72,7 +72,7 @@ const Buttons = (() => {
       }
     }));
     rows.push({ label: T('btnReset'), icon: 'refresh', action: (r, scr) => { Store.setPref('btns', {}); if (scr && scr.v) scr.v.refresh(); UI.toast(T('btnResetDone')); } });
-    return new ListScreen(T('btnTitle'), rows, { hints: [['b', T('hintOk')], ['a', T('hintBack')]] });
+    return new ListScreen(T('btnTitle'), rows, { hints: [['a', T('hintOk')], ['b', T('hintBack')]] });
   }
   return { supported, actionFor, screen, listen, map, label, DEF };
 })();

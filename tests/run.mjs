@@ -494,6 +494,8 @@ async function partMultiList(browser) {
   check(r.crumb === 'iptv-lists.mypc-app.workers.dev/l/yallashot' || /yallashot/.test(r.crumb), 'the home screen names the list ' + r.crumb);
   await page.waitForFunction(() => /Active/.test(document.querySelector('.acct').textContent));
   await t.shot('27-multi-list-home');
+  const hn = await page.evaluate(() => [...document.querySelectorAll('.home .hints > span')].map((x) => x.textContent));
+  check(hn[0] === 'AOK' && hn[hn.length - 1] === 'BBack', 'hints: A = OK, B = Back (owner rule) ' + hn.join(' | '));
   const sp = await page.evaluate(() => ['https://w.test/l/yallashot/player_api.php?username=a%40b&password=x', 'http://h.test:8080/get.php?username=u&password=p&type=m3u_plus', 'http://h.test/l/x/live/u/p/12.ts', 'h.test:8080/', 'https://w.test/l/yallashot//'].map((x) => Provider.splitServer(x)));
   check(sp[0].base === 'https://w.test/l/yallashot' && sp[0].user === 'a@b' && sp[0].pass === 'x' && sp[1].base === 'http://h.test:8080' && sp[1].user === 'u' && sp[2].base === 'http://h.test/l/x' && sp[2].pass === 'p' && sp[3].base === 'http://h.test:8080' && sp[4].base === 'https://w.test/l/yallashot',
     'pasted player_api / get.php / stream links keep the path and give their user and password ' + JSON.stringify(sp));

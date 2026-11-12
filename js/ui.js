@@ -154,7 +154,7 @@ const UI = (() => {
     announce(text);
   }
 
-  // A B X Y + hints, drawn in the theme: [['b', 'OK'], ['a', 'Back'], ['x', 'Favorite']...]
+  // A B X Y + hints, drawn in the theme: [['a', 'OK'], ['b', 'Back'], ['x', 'Favorite']...]
   function hints(box, list) {
     clear(box);
     for (const h of list) {
@@ -181,7 +181,7 @@ class ListScreen {
     $('screens').appendChild(this.root);
     this.rows = rows;
     this.v = new VList(this.root.querySelector('.lb'), { itemH: 100, render: (i, n) => this.draw(i, n), onFocus: (i) => announce(this.say(i)) });
-    UI.hints(this.root.querySelector('.hints'), this.o.hints || [['b', T('hintOk')], ['a', T('hintBack')]]);
+    UI.hints(this.root.querySelector('.hints'), this.o.hints || [['a', T('hintOk')], ['b', T('hintBack')]]);
   }
   say(i) { const r = this.rows[i]; if (!r) return ''; const v = typeof r.value === 'function' ? r.value() : r.value; return r.label + (v ? ', ' + v : ''); }
   draw(i, n) {

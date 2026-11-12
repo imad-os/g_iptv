@@ -35,7 +35,7 @@ function settingsScreen() {
     { label: T('speedtest'), icon: 'speed', action: () => UI.push(new SpeedScreen()) },
     { label: T('about'), icon: 'info', value: 'v' + APP_VERSION, action: () => UI.alert(T('about'), T('aboutText', { v: APP_VERSION }) + '\n\n' + T('privacy')) }
   ];
-  return new ListScreen(T('settings'), rows, { hints: [['b', T('hintOk')], ['lr', '◀ ▶'], ['a', T('hintBack')]] });
+  return new ListScreen(T('settings'), rows, { hints: [['a', T('hintOk')], ['lr', '◀ ▶'], ['b', T('hintBack')]] });
 }
 // the theme menu shows each theme as it is focused (the whole app and the player change together)
 function themeMenu() {
@@ -88,7 +88,7 @@ function subsStyleScreen() {
     pv.style.bottom = o.pos === 'raised' ? '200px' : '110px';
   }
   const rows = Object.keys(opts).map((k) => ({ label: T(lbl[k]), value: () => name(k, s()[k]), action: () => step(k, 1), side: (a) => step(k, a === 'right' ? 1 : -1) }));
-  const scr = new ListScreen(T('subsStyle'), rows, { hints: [['b', T('hintOk')], ['lr', '◀ ▶'], ['a', T('hintBack')]], onShow: (x) => {
+  const scr = new ListScreen(T('subsStyle'), rows, { hints: [['a', T('hintOk')], ['lr', '◀ ▶'], ['b', T('hintBack')]], onShow: (x) => {
     if (pv) return;
     pv = el('div', 'subs-pv'); const sp = el('span', '', T('subtitles') + ' · Speedy\n' + 'مرحبا · Bonjour'); pv.appendChild(sp); x.root.appendChild(pv); preview();
   } });
@@ -105,7 +105,7 @@ function catScreen(kind) {
     action: () => { const st = Store.catState(kind, c.id); Store.setCat(kind, c.id, 'hide', !st.hidden); Catalog.invalidate(kind); },
     hold: (r, scr) => { const st = Store.catState(kind, c.id); UI.menu(c.name, [{ label: st.hidden ? T('show') : T('hide'), action: () => { Store.setCat(kind, c.id, 'hide', !st.hidden); Catalog.invalidate(kind); scr.v.refresh(); } },
       { label: st.pinned ? T('unpin') : T('pin'), action: () => { Store.setCat(kind, c.id, 'pin', !st.pinned); scr.v.refresh(); } }]); } }));
-  return new ListScreen(T({ live: 'manageLive', vod: 'manageMovies', series: 'manageSeries' }[kind]), rows, { hints: [['b', T('hide') + ' / ' + T('show')], ['plus', T('pin')], ['a', T('hintBack')]] });
+  return new ListScreen(T({ live: 'manageLive', vod: 'manageMovies', series: 'manageSeries' }[kind]), rows, { hints: [['a', T('hide') + ' / ' + T('show')], ['plus', T('pin')], ['b', T('hintBack')]] });
 }
 
 /* ---------------- playlists ---------------- */
@@ -127,7 +127,7 @@ function playlistsScreen() {
     if (!Store.playlists().some((p) => p.kind === 'demo')) rows.push({ label: T('demo'), icon: 'play', action: () => { const p = Store.putPlaylist({ kind: 'demo', name: 'Demo' }); usePlaylist(p.id); } });
     return rows;
   };
-  const scr = new ListScreen(T('playlists'), make(), { hints: [['b', T('usePlaylist')], ['plus', T('hintMenu')], ['a', T('hintBack')]], onShow: (s) => { s.setRows(make(), s.v.index); } });
+  const scr = new ListScreen(T('playlists'), make(), { hints: [['a', T('usePlaylist')], ['plus', T('hintMenu')], ['b', T('hintBack')]], onShow: (s) => { s.setRows(make(), s.v.index); } });
   return scr;
 }
 
@@ -138,7 +138,7 @@ class PlaylistForm {
     if (this.p.kind === 'demo') this.p.kind = 'xtream';
     this.root = screenEl('form', topHtml() + '<div class="page"><h1></h1><div class="seg"></div><div class="fields"></div><div class="err"></div><div class="acts"></div></div><div class="hints"></div>');
     this.root.querySelector('h1').textContent = p ? T('editPlaylist') : T('addPlaylist');
-    UI.hints(this.root.querySelector('.hints'), [['b', T('hintOk')], ['a', T('hintBack')]]);
+    UI.hints(this.root.querySelector('.hints'), [['a', T('hintOk')], ['b', T('hintBack')]]);
     this.fi = 0;
     this.build();
   }
@@ -231,7 +231,7 @@ class SpeedScreen {
     const b = el('button', 'btn primary f', T('stStart'));
     this.root.querySelector('.acts').appendChild(b);
     this.btn = b; this.running = false;
-    UI.hints(this.root.querySelector('.hints'), [['b', T('hintOk')], ['a', T('hintBack')]]);
+    UI.hints(this.root.querySelector('.hints'), [['a', T('hintOk')], ['b', T('hintBack')]]);
   }
   show() { fillTop(this.root); announce(T('speedtest') + '. ' + T('stHint', { s: 10 })); }
   hide() {} destroy() { this.dead = true; if (this.req && this.req.abort) this.req.abort(); this.root.remove(); }
