@@ -11,15 +11,21 @@ const Buttons = (() => {
                 ['subs', 'btnSubs', 'player'], ['audio', 'btnAudio', 'player'], ['plMenu', 'btnPlMenu', 'player']];
   const DEF = { ok: '', back: '', fav: 'red', menu: 'blue', search: 'green', pageUp: 'chUp', pageDown: 'chDown', subs: 'yellow', audio: 'green', plMenu: 'blue' };
   // the buttons that can be given an action (never the arrows, OK, Back or Play / Pause)
-  const CHOICES = ['red', 'green', 'yellow', 'blue', 'chUp', 'chDown', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'info', 'chList', 'tools', 'prevCh',
+  const CHOICES = ['red', 'green', 'yellow', 'blue', 'chUp', 'chDown', 'guide', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'info', 'chList', 'tools', 'prevCh',
                    'caption', 'mts', 'teletext', 'pictureSize', 'extra', 'minus', 'ff', 'rew', 'next', 'prev', 'stop', 'record'];
   const NAME = { red: 'bRed', green: 'bGreen', yellow: 'bYellow', blue: 'bBlue', chUp: 'bChUp', chDown: 'bChDown', info: 'bInfo', chList: 'bChList', tools: 'bTools',
-                 prevCh: 'bPrevCh', caption: 'bCaption', mts: 'bMts', teletext: 'bTeletext', pictureSize: 'bPictureSize', extra: 'bExtra', minus: 'bMinus',
+                 prevCh: 'bPrevCh', guide: 'bGuide', caption: 'bCaption', mts: 'bMts', teletext: 'bTeletext', pictureSize: 'bPictureSize', extra: 'bExtra', minus: 'bMinus',
                  ff: 'bFf', rew: 'bRew', next: 'bNext', prev: 'bPrev', stop: 'bStop', record: 'bRecord', pageUp: 'bChUp', pageDown: 'bChDown' };
 
   function supported() { try { return MyPC.isHosted() && MyPC.apiLevel >= 19 && !!MyPC.buttons; } catch (e) { return false; } }
   function map() { return Object.assign({}, DEF, Store.prefs().btns || {}); }
-  function label(b) { return !b ? T('btnNone') : /^\d$/.test(b) ? T('bNumber', { n: b }) : T(NAME[b] || b); }
+  // a key My PC has no name for comes as 'k<code>' with the TV's own name for it (kept so the setting can show it)
+  function label(b) {
+    if (!b) return T('btnNone');
+    if (/^\d$/.test(b)) return T('bNumber', { n: b });
+    if (/^k\d+$/.test(b)) { const l = (Store.prefs().btnNames || {})[b]; return l ? l.replace(/([a-z])([A-Z])/g, '$1 $2') : T('bKey', { n: b.slice(1) }); }
+    return T(NAME[b] || b);
+  }
   function groupOf(a) { const x = ACTS.find((y) => y[0] === a); return x ? x[2] : 'list'; }
   function actionFor(name, inPlayer) {
     const m = map();
@@ -39,11 +45,14 @@ const Buttons = (() => {
 
   // "Press the button": the next remote button (5 s); Back cancels (it comes as Back, not here)
   let wait = null;
-  function listen(name, pressed) {
+  const FIXED = /^(up|down|left|right|ok|space|play|pause|playPause)$/;
+  function listen(name, pressed, lbl) {
     if (!wait) return false;
     if (!pressed) return true;
-    if (CHOICES.indexOf(name) >= 0 || name === 'pageUp' || name === 'pageDown') { const w = wait; wait = null; w.done(name === 'pageUp' ? 'chUp' : name === 'pageDown' ? 'chDown' : name); }
-    else UI.toast(T('btnCant'));
+    if (FIXED.test(name)) { UI.toast(T('btnCant')); return true; }
+    if (/^k\d+$/.test(name) && lbl) { const o = Object.assign({}, Store.prefs().btnNames || {}); o[name] = String(lbl).slice(0, 40); Store.setPref('btnNames', o); }
+    const w = wait; wait = null;
+    w.done(name === 'pageUp' ? 'chUp' : name === 'pageDown' ? 'chDown' : name);
     return true;
   }
   function press(onDone) {
@@ -59,7 +68,7 @@ const Buttons = (() => {
         const redraw = () => { if (scr && scr.v) scr.v.refresh(); };
         const pick = (b) => { set(a, b); redraw(); announce(T(k) + ': ' + label(b)); };
         UI.menu(T(k), [{ label: T('btnPressIt'), action: () => press(pick) }, { label: T('btnNone'), checked: !map()[a], action: () => pick('') }]
-          .concat(CHOICES.map((b) => ({ label: label(b), checked: map()[a] === b, action: () => pick(b) }))), { focus: 0 });
+          .concat(CHOICES.concat(Object.keys(Store.prefs().btnNames || {}).filter((b) => CHOICES.indexOf(b) < 0)).map((b) => ({ label: label(b), checked: map()[a] === b, action: () => pick(b) }))), { focus: 0 });
       }
     }));
     rows.push({ label: T('btnReset'), icon: 'refresh', action: (r, scr) => { Store.setPref('btns', {}); if (scr && scr.v) scr.v.refresh(); UI.toast(T('btnResetDone')); } });

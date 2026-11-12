@@ -56,8 +56,8 @@ const APP_VERSION = '1.0.0';
       } catch (e) {}
       // inside My PC (API 19): every remote button by name, mapped in Settings > Remote buttons (js/buttons.js)
       try {
-        if (MyPC.buttons) MyPC.buttons.on((n, pressed, repeat) => {
-          if (!started || Buttons.listen(n, pressed)) return;
+        if (MyPC.buttons) MyPC.buttons.on((n, pressed, repeat, lbl) => {
+          if (!started || Buttons.listen(n, pressed, lbl)) return;
           if (n === 'ok' || n === 'space') { onInput('confirm', pressed, repeat); return; }       // OK keeps hold = options
           if (!pressed) return;
           if (/^(up|down|left|right)$/.test(n)) { act(n, repeat); return; }
