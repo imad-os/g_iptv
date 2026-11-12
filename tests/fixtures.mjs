@@ -144,6 +144,14 @@ export async function routeAll(ctx, o) {
   await ctx.route('https://iptv-lists.mypc-app.workers.dev/**', (r) => {
     if (r.request().method() === 'OPTIONS') return r.fulfill({ status: 204, headers: CORS });
     const u = new URL(r.request().url());
+    // one server, several lists (imad-os/fb cloudflare: /l/<list>/player_api.php); the bare server = the Default list, which refuses demo
+    const lm = /^(?:\/l\/([^/]+))?\/player_api\.php$/.exec(u.pathname);
+    if (lm) {
+      const list = lm[1] || 'default';
+      stats.lists = stats.lists || {}; stats.lists[list] = (stats.lists[list] || 0) + 1;
+      const x = list === 'yallashot' ? xtreamAnswer(d, u.href) : { status: 200, json: { user_info: { auth: 0 } } };
+      return r.fulfill({ status: x.status || 200, headers: Object.assign({ 'Content-Type': 'application/json' }, CORS), body: JSON.stringify(x.json) });
+    }
     stats.subs++;
     // the stream server's subtitle API (imad-os/fb cloudflare/README.md "Subtitles API for apps")
     if (u.pathname.indexOf('/subtitleProviders') === 0) return r.fulfill({ status: 200, headers: Object.assign({ 'Content-Type': 'application/json' }, CORS), body: JSON.stringify({ status: 'success', default: 'subdl',

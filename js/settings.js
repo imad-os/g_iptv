@@ -208,9 +208,10 @@ class PlaylistForm {
     if (p.kind === 'xtream' && (!p.host || !p.user || !p.pass)) { er.textContent = T('needFields'); announce(er.textContent); return; }
     if (p.kind === 'm3u' && !/^https?:\/\/\S+/i.test(p.url)) { er.textContent = T('needM3u'); announce(er.textContent); return; }
     if (p.kind === 'xtream') {
-      // "host:port/" or a full player link pasted: keep the server only
-      const m = /^(https?:\/\/)?([^/?#\s]+)(.*)$/i.exec(p.host);
-      if (m) { p.host = (m[1] || 'http://') + m[2]; const um = /username=([^&]+)/.exec(m[3] || ''), pm = /password=([^&]+)/.exec(m[3] || ''); if (um && !p.user) p.user = decodeURIComponent(um[1]); if (pm && !p.pass) p.pass = decodeURIComponent(pm[1]); }
+      // the address is kept as typed, path included (/l/<list>/ = one list of a multi-list server); a pasted
+      // player_api.php / get.php / stream link only gives its user and password and loses the file part
+      const sv = Provider.splitServer(p.host);
+      p.host = sv.base; if (sv.user && !p.user) p.user = sv.user; if (sv.pass && !p.pass) p.pass = sv.pass;
       const b = UI.busy(T('connecting'));
       try { await Provider.make(p).info(); b.close(); } catch (e) { b.close(); er.textContent = errText(e); announce(er.textContent); return; }
     }

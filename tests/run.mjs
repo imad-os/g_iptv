@@ -477,6 +477,36 @@ async function partSpeed(t) {
   await key('Escape');
 }
 
+async function partMultiList(browser) {
+  console.log('10. One server with several lists: the address keeps its path (/l/<list>/)');
+  const LIST = 'https://iptv-lists.mypc-app.workers.dev/l/yallashot/';
+  const t = await open(browser);
+  const { page, key } = t;
+  await page.waitForSelector('.home .home-actions .btn');
+  await key('Enter');
+  await page.waitForSelector('.form .field input');
+  t.answers.push(LIST, 'demo', 'pass', '');
+  for (let i = 0; i < 5; i++) { await key('Enter'); await page.waitForTimeout(80); }
+  await page.waitForSelector('.home .home-tiles .tile', { timeout: 15000 });
+  const r = await page.evaluate(() => { const pl = Store.current(); const pr = Provider.make(pl); return { host: pl.host, crumb: document.querySelector('.home .crumb').textContent, film: pr.url('vod', { i: 7, x: 'mp4' }), live: pr.url('live', { i: 3 }) }; });
+  check(r.host === 'https://iptv-lists.mypc-app.workers.dev/l/yallashot' && t.stats.lists.yallashot > 0 && !t.stats.lists.default, 'the list address is kept with its path, only the last / is dropped; the server was asked at /l/yallashot/ only ' + JSON.stringify({ host: r.host, lists: t.stats.lists }));
+  check(r.film === 'https://iptv-lists.mypc-app.workers.dev/l/yallashot/movie/demo/pass/7.mp4' && r.live === 'https://iptv-lists.mypc-app.workers.dev/l/yallashot/live/demo/pass/3.m3u8', 'films and channels play from the same list ' + r.film + ' ' + r.live);
+  check(r.crumb === 'iptv-lists.mypc-app.workers.dev/l/yallashot' || /yallashot/.test(r.crumb), 'the home screen names the list ' + r.crumb);
+  await page.waitForFunction(() => /Active/.test(document.querySelector('.acct').textContent));
+  await t.shot('27-multi-list-home');
+  const sp = await page.evaluate(() => ['https://w.test/l/yallashot/player_api.php?username=a%40b&password=x', 'http://h.test:8080/get.php?username=u&password=p&type=m3u_plus', 'http://h.test/l/x/live/u/p/12.ts', 'h.test:8080/', 'https://w.test/l/yallashot//'].map((x) => Provider.splitServer(x)));
+  check(sp[0].base === 'https://w.test/l/yallashot' && sp[0].user === 'a@b' && sp[0].pass === 'x' && sp[1].base === 'http://h.test:8080' && sp[1].user === 'u' && sp[2].base === 'http://h.test/l/x' && sp[2].pass === 'p' && sp[3].base === 'http://h.test:8080' && sp[4].base === 'https://w.test/l/yallashot',
+    'pasted player_api / get.php / stream links keep the path and give their user and password ' + JSON.stringify(sp));
+  await page.evaluate(() => { const h = UI.top(); h.zone = h.zones.indexOf('acts'); h.ai = h.acts.findIndex((a) => a.id === 'pls'); h.paint(); });
+  await key('Enter');
+  await page.waitForSelector('.screen.on .li');
+  const rows = await page.evaluate(() => UI.top().rows.map((r) => r.label));
+  check(rows.some((x) => /workers\.dev\/l\/yallashot · demo/.test(x)), 'the playlists screen shows the list path ' + rows.join(' | '));
+  await t.shot('28-multi-list-playlists');
+  check(t.errors.length === 0, 'no page errors (multi-list) ' + t.errors.join(' | '));
+  await t.ctx.close();
+}
+
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 try {
   if (!ONLY || ONLY === 'main') {
@@ -492,6 +522,7 @@ try {
   }
   if (!ONLY || ONLY === 'ar') await partArabic(browser);
   if (!ONLY || ONLY === 'm3u') await partM3u(browser);
+  if (!ONLY || ONLY === 'lists') await partMultiList(browser);
 } catch (e) { failures++; console.log('  FAIL crashed: ' + (e && e.stack || e)); if (global.__errs) console.log('page errors: ' + global.__errs.join(' | ')); if (global.__page) console.log('last actions: ' + await global.__page.evaluate(() => window.__acts.join(' ') + ' | keys ' + window.__keys.join(' ') + ' | top ' + UI.top().constructor.name + ' modal ' + UI.modalOpen() + ' ' + [...document.querySelectorAll('.dialog,.menu,.loading')].map((x) => x.textContent.slice(0, 60)).join(';')).catch(() => '')); }
 await browser.close();
 console.log(failures ? `\n${failures} of ${checks} check(s) FAILED` : `\nall ${checks} checks passed`);

@@ -19,12 +19,25 @@ const Provider = (() => {
   }
   function stopWorker() { if (worker) { worker.terminate(); worker = null; } }
   function b64(s) { try { return decodeURIComponent(escape(atob(s))); } catch (e) { return String(s || ''); } }
-  function baseOf(host) {
+  // The server address is kept as typed, path included (one server can hold several lists: https://host/l/<list>/).
+  // Only what is not part of the server is taken off: a pasted player_api.php / get.php / xmltv.php link with its
+  // query, a pasted stream link (/live|movie|series/<user>/<pass>/...), a #fragment and the last "/" (added back when joining).
+  function splitServer(host) {
     let h = String(host || '').trim();
+    if (!h) return { base: '', user: '', pass: '' };
     if (!/^https?:\/\//i.test(h)) h = 'http://' + h;
-    h = h.replace(/\/(player_api|get|panel_api|xmltv)\.php.*$/i, '').replace(/\/+$/, '');
-    return h;
+    let q = '';
+    const hashAt = h.indexOf('#'); if (hashAt >= 0) h = h.slice(0, hashAt);
+    const qAt = h.indexOf('?'); if (qAt >= 0) { q = h.slice(qAt + 1); h = h.slice(0, qAt); }
+    const arg = (k) => { const m = new RegExp('(?:^|&)' + k + '=([^&]*)').exec(q); if (!m) return ''; try { return decodeURIComponent(m[1].replace(/\+/g, ' ')); } catch (e) { return m[1]; } };
+    let user = arg('username'), pass = arg('password');
+    h = h.replace(/\/(player_api|get|panel_api|xmltv)\.php$/i, '');
+    const st = /^(https?:\/\/[^/]+(?:\/.*?)?)\/(?:live|movie|series)\/([^/]+)\/([^/]+)\/[^/]+$/i.exec(h);
+    if (st) { h = st[1]; if (!user) user = decodeURIComponent(st[2]); if (!pass) pass = decodeURIComponent(st[3]); }
+    h = h.replace(/\/+$/, '');
+    return { base: h, user, pass };
   }
+  function baseOf(host) { return splitServer(host).base; }
 
   /* ---------------- Xtream Codes ---------------- */
   function xtream(pl) {
@@ -192,5 +205,5 @@ const Provider = (() => {
   }
 
   function make(pl) { return !pl ? null : pl.kind === 'm3u' ? m3u(pl) : pl.kind === 'demo' ? demo() : xtream(pl); }
-  return { make, baseOf, stopWorker, parse };
+  return { make, baseOf, splitServer, stopWorker, parse };
 })();
