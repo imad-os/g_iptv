@@ -112,7 +112,7 @@ function catScreen(kind) {
 function plLabel(p) { return p.name || (p.kind === 'demo' ? T('demo') : p.kind === 'm3u' ? p.url.replace(/^https?:\/\//, '').slice(0, 40) : Provider.baseOf(p.host).replace(/^https?:\/\//, '') + ' · ' + p.user); }
 function playlistsScreen() {
   const make = () => {
-    const rows = Store.playlists().map((p) => ({ label: plLabel(p), sub: p.kind === 'xtream' ? T('xtream') : p.kind === 'm3u' ? T('m3u') : T('demo'), cur: Store.current() && Store.current().id === p.id, icon: 'list',
+    const rows = Store.playlists().map((p) => ({ label: plLabel(p), sub: p.kind === 'xtream' ? T('xtream') : p.drive ? T('m3u') + ' · ' + T('gd') : p.kind === 'm3u' ? T('m3u') : T('demo'), cur: Store.current() && Store.current().id === p.id, icon: 'list',
       value: () => Store.current() && Store.current().id === p.id ? '✓' : '',
       action: () => usePlaylist(p.id),
       hold: (r, scr) => UI.menu(plLabel(p), [{ label: T('usePlaylist'), action: () => usePlaylist(p.id) },
@@ -205,8 +205,9 @@ class PlaylistForm {
     const p = this.p, er = this.root.querySelector('.err');
     er.textContent = '';
     ['name', 'host', 'user', 'pass', 'url'].forEach((k) => { if (typeof p[k] === 'string') p[k] = p[k].trim(); });
+    if (p.drive && (p.kind !== 'm3u' || p.url !== 'gdrive:' + p.drive)) delete p.drive;      // a Drive playlist given another address
     if (p.kind === 'xtream' && (!p.host || !p.user || !p.pass)) { er.textContent = T('needFields'); announce(er.textContent); return; }
-    if (p.kind === 'm3u' && !/^https?:\/\/\S+/i.test(p.url)) { er.textContent = T('needM3u'); announce(er.textContent); return; }
+    if (p.kind === 'm3u' && !p.drive && !/^https?:\/\/\S+/i.test(p.url)) { er.textContent = T('needM3u'); announce(er.textContent); return; }
     if (p.kind === 'xtream') {
       // the address is kept as typed, path included (/l/<list>/ = one list of a multi-list server); a pasted
       // player_api.php / get.php / stream link only gives its user and password and loses the file part

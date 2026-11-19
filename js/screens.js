@@ -97,6 +97,7 @@ class HomeScreen {
                                     { id: 'vod', icon: 'film', t: T('movies'), c: () => Catalog.count('vod') >= 0 ? T('titles', { n: Catalog.count('vod') }) : '' },
                                     { id: 'series', icon: 'series', t: T('series'), c: () => Catalog.count('series') >= 0 ? T('shows', { n: Catalog.count('series') }) : '' });
     if (Usb.available()) this.tiles.push({ id: 'usb', icon: 'usb', t: T('usb'), c: () => T('usbLong') });
+    if (Gd.available()) this.tiles.push({ id: 'gdrive', icon: 'drive', t: T('gd'), c: () => T('gdLong') });
     const tb = this.root.querySelector('.home-tiles');
     clear(tb);
     tb.style.gridTemplateColumns = 'repeat(' + Math.max(1, this.tiles.length) + ', 1fr)';
@@ -109,8 +110,8 @@ class HomeScreen {
       t.node = b; tb.appendChild(b);
     });
     // continue watching
-    this.rec = this.hasPl ? Store.recent(null, ['vod', 'series', 'usb']).filter((r) => r.key[0] !== 'e' && !(r.d > 0 && r.t / r.d > 0.95)).slice(0, 30) : [];
-    if (Usb.available() || !this.hasPl) { /* USB entries are shared across playlists */ }
+    // USB and Google Drive films are kept for every playlist (Store: hist._)
+    this.rec = this.hasPl ? Store.recent(null, ['vod', 'series', 'usb', 'gdrive']).filter((r) => r.key[0] !== 'e' && !(r.d > 0 && r.t / r.d > 0.95)).slice(0, 30) : [];
     this.root.querySelector('.home-row-title').textContent = this.hasPl ? T('continue') : '';
     this.root.querySelector('.home-row').classList.toggle('hidden', !this.rec.length);
     this.row.setCount(this.rec.length, 0);
@@ -131,6 +132,7 @@ class HomeScreen {
     if (this.tiles.length) this.zones.push('tiles');
     if (this.rec.length) this.zones.push('row');
     this.zones.push('acts');
+    if (!this.hasPl && this.tiles.length) this.zones = ['acts', 'tiles'];        // no playlist: the tiles sit under the buttons
     // first build, or the playlist just came / went: no playlist = Add a playlist first (the USB tile is only beside it)
     if (this.plWas !== this.hasPl) { this.zone = this.hasPl ? 0 : this.zones.indexOf('acts'); this.ai = 0; this.plWas = this.hasPl; }
     if (this.zone >= this.zones.length) this.zone = 0;
@@ -162,7 +164,7 @@ class HomeScreen {
     const r = this.rec[i];
     if (!n.__c) { n.__c = el('div', 'cw'); n.__p = el('div', 'pic'); n.__b = el('div', 'bar'); n.__bi = el('i'); n.__b.appendChild(n.__bi); n.__p.appendChild(n.__b); n.__n = el('div', 'nm'); n.__s = el('div', 'sub'); n.__c.append(n.__p, n.__n, n.__s); n.appendChild(n.__c); }
     n.__n.textContent = r.name;
-    n.__s.textContent = (r.kind === 'usb' ? 'USB · ' : r.kind === 'series' ? T('series') + ' · ' : '') + (r.d ? fmtTime(r.t) + ' / ' + fmtTime(r.d) : '');
+    n.__s.textContent = (r.kind === 'usb' ? 'USB · ' : r.kind === 'gdrive' ? T('gd') + ' · ' : r.kind === 'series' ? T('series') + ' · ' : '') + (r.d ? fmtTime(r.t) + ' / ' + fmtTime(r.d) : '');
     n.__bi.style.width = (r.d ? Math.min(100, r.t / r.d * 100) : 0) + '%';
     n.__p.style.backgroundImage = '';
     if (full && r.icon) { const k = r.key; Net.image(r.icon, (u) => { if (u && this.rec[i] && this.rec[i].key === k && n.__i === i) n.__p.style.backgroundImage = 'url("' + u + '")'; }); }
@@ -172,6 +174,11 @@ class HomeScreen {
       const cut = path.lastIndexOf('/'), dir = path.slice(0, cut), name = path.slice(cut + 1), k = r.key;
       if (path) Usb.picture(r.key[1] === '#' ? { name: '', dir: dir.replace(/\/Season[^/]*$/i, ''), path: dir, ep: { name, dir, path } } : { name, dir, path },
         (u) => { if (u && this.rec[i] && this.rec[i].key === k && n.__i === i) n.__p.style.backgroundImage = 'url("' + u + '")'; });
+    }
+    // a Google Drive film / show: Google's picture of it (asked through My PC)
+    else if (full && r.kind === 'gdrive' && Gd.available()) {
+      const id = r.key[1] === '#' ? String(r.x || '') : r.key.slice(1), k = r.key;
+      if (id) Gd.get(id).then((f) => Gd.picture(f, (u) => { if (u && this.rec[i] && this.rec[i].key === k && n.__i === i) n.__p.style.backgroundImage = 'url("' + u + '")'; }), () => {});
     }
   }
   paint() {
@@ -224,6 +231,7 @@ class HomeScreen {
   }
   async openTile(id, search) {
     if (id === 'usb') { UI.push(new UsbScreen()); return; }
+    if (id === 'gdrive') { UI.push(new DriveScreen()); return; }
     if (!(await openKind(id))) return;
     if (id === 'live') UI.push(new LiveScreen());
     else { const s = new BrowseScreen(id); UI.push(s); if (search) s.search(); }
@@ -249,6 +257,20 @@ class HomeScreen {
       playUsb(f, rest, p && p.d && p.t / p.d < 0.95 ? p.t : r.t);
       return;
     }
+    if (r.kind === 'gdrive') {
+      if (!Gd.available()) { UI.toast(T('gdNone')); return; }
+      // a film ("g<id>") or a show ("g#<show>", its last episode in x)
+      const id = r.key[1] === '#' ? String(r.x || '') : r.key.slice(1);
+      if (!id) return;
+      const b = UI.busy(T('loading'));
+      let f = null;
+      try { f = await Gd.get(id); } catch (e) { b.close(); UI.alert(T('gd'), driveErr(e)); return; }
+      const rest = await Gd.after(f);
+      b.close();
+      const p = Store.progress('g' + id);
+      playDrive(f, rest, p && p.d && p.t / p.d < 0.95 ? p.t : r.t);
+      return;
+    }
     const kind = r.kind === 'series' ? 'series' : 'vod';
     if (!(await openKind(kind))) return;
     const it = Catalog.byId(kind, r.key.slice(1));
@@ -262,7 +284,7 @@ class HomeScreen {
     else if (id === 'pls') UI.push(playlistsScreen());
     else if (id === 'set') UI.push(settingsScreen());
     else if (id === 'speed') UI.push(new SpeedScreen());
-    else if (id === 'about') UI.alert(T('about'), T('aboutText', { v: APP_VERSION }) + '\n\n' + T('privacy'));
+    else if (id === 'about') UI.alert(T('about'), T('aboutText', { v: APP_VERSION }) + '\n\n' + T('privacy') + '\n\n' + T('gdPrivacy'));
     else if (id === 'refresh') refreshAll();
   }
 }
@@ -582,8 +604,8 @@ class SeriesScreen {
     this.buttons();
     this.setZone('eps');
   }
-  parentKey() { return this.src ? 'u#' + this.src.key : 's' + this.it.i; }
-  epKey(e) { return this.src ? 'u' + e.path : 'e' + e.id; }
+  parentKey() { return this.src ? (this.src.pre || 'u') + '#' + this.src.key : 's' + this.it.i; }
+  epKey(e) { return this.src ? (this.src.pre === 'g' ? 'g' + e.id : 'u' + e.path) : 'e' + e.id; }
   setSeason(k, focus) {
     this.si = Math.max(0, Math.min(this.seasons.length - 1, k));
     this.eps = this.seasons.length ? this.info.seasons[this.seasons[this.si]] : [];
@@ -640,10 +662,10 @@ class SeriesScreen {
   }
   play(e, start) {
     if (!e) return;
-    if (this.src) { const k = this.flat.indexOf(e); playUsb(e, this.flat.slice(k + 1), start === undefined ? startOf('u' + e.path) : start, this.src); return; }
+    if (this.src) { const k = this.flat.indexOf(e), rest = this.flat.slice(k + 1), at = start === undefined ? startOf(this.epKey(e)) : start; if (this.src.play) this.src.play(e, rest, at); else playUsb(e, rest, at, this.src); return; }
     Player.play(this.specFor(e, start === undefined ? startOf('e' + e.id) : start));
   }
-  show(first) { fillTop(this.root, this.src ? T('usbShows') : T('series')); if (!first && this.info) { this.ev.refresh(); this.buttons(); } if (first) announce(this.it.n); }
+  show(first) { fillTop(this.root, this.src ? this.src.label || T('usbShows') : T('series')); if (!first && this.info) { this.ev.refresh(); this.buttons(); } if (first) announce(this.it.n); }
   hide() { this.ev.active(false); }
   destroy() { this.ev.destroy(); this.root.remove(); }
   input(a) {
@@ -1020,5 +1042,271 @@ class UsbScreen {
       items.push({ label: T('info'), action: () => UI.alert(f.title || f.name, f.name + '\n' + T('usbInfo', { size: fmtSize(f.size), ext: ext(f.name).toUpperCase() }) + '\n' + f.path) });
       UI.menu(f.title || f.name, items);
     }
+  }
+}
+
+/* ======================================================================= GOOGLE DRIVE (through My PC: MyPC.drive) */
+function driveErr(e) {
+  const c = e && e.code;
+  return c === 'noconfig' ? T('gdNoConfig') : c === 'signed-out' || c === 'reauth' ? T('gdSignedOut') : c === 'denied' ? T('gdDenied') : c === 'unsupported' ? T('gdNone') : c === 'cancelled' ? T('gdCancelled') : errText(e);
+}
+// a Drive film / episode for the player: the web player, the address made when it starts (Gd.stream), the subtitle files beside it
+function driveSpec(f, start, rest) {
+  const s = { kind: 'gdrive', id: f.id, title: f.show || f.title || f.name, sub: f.show ? 'S' + pad2(f.season) + 'E' + pad2(f.ep) : (f.year || '') + (f.size ? (f.year ? ' · ' : '') + fmtSize(f.size) : ''),
+              icon: '', url: '', key: 'g' + f.id, start: start || 0, files: [], engine: 'web',
+              meta: f.show ? { name: f.show, season: f.season, episode_num: f.ep } : { name: f.title || stripExt(f.name), year: f.year || '' }, metaKind: f.show ? 'series' : 'movie',
+              prepare: async (onProgress) => { const st = await Gd.stream(f, onProgress); s.url = st.url; s.release = () => st.close(); } };
+  // an episode: Continue watching keeps the show once (key "g#<show>", the episode's id in x)
+  if (f.show) { s.kind = 'gdriveep'; s.parentKey = 'g#' + fold(f.show); s.parentTitle = f.show; s.parentKind = 'gdrive'; }
+  Gd.spec(f).then((x) => { s.files.push.apply(s.files, x.files); }).catch(() => {});
+  if (rest && rest.length) s.next = once(() => driveSpec(rest[0], startOf('g' + rest[0].id), rest.slice(1)));
+  return s;
+}
+function playDrive(f, rest, start) { Player.play(driveSpec(f, start, rest)); }
+
+class DriveScreen {
+  constructor() {
+    this.root = screenEl('browse usb gdrive', '<div class="side"><h2></h2><div class="acct"></div><div class="cats"></div></div><div class="main"><div class="head"><h1></h1><span class="n"></span><div class="grow"></div></div><div class="grid"></div><div class="empty hidden" style="top:440px;left:0;right:0"></div><div class="gd-act hidden"></div><div class="hints"></div></div>');
+    this.root.querySelector('.side h2').textContent = T('gd');
+    this.tabs = []; this.zone = 'cats'; this.items = []; this.view = ''; this.lib = null; this.trail = []; this.st = null; this.seq = 0;
+    this.cv = new VList(this.root.querySelector('.side .cats'), { itemH: 84, render: (i, n) => this.drawTab(i, n), onFocus: (i) => { announce(this.tabs[i].name); this.pickSoon(); } });
+    this.makeGrid('grid');
+    this.pickSoon = debounce(() => this.pick(), 260);
+    UI.hints(this.root.querySelector('.hints'), [['a', T('hintOk')], ['plus', T('hintMenu')], ['b', T('hintBack')]]);
+  }
+  makeGrid(kind) {
+    if (this.gv && this.gkind === kind) return;
+    if (this.gv) this.gv.destroy();
+    this.gkind = kind;
+    const box = this.root.querySelector('.main .grid');
+    if (kind === 'grid') { const cols = 6, cw = (1920 - 470 - 60) / cols; this.gv = new VList(box, { cols, itemH: Math.round(cw * 1.38) + 64, render: (i, n, full) => this.drawPost(i, n, full), onFocus: (i) => this.sayItem(i) }); }
+    else this.gv = new VList(box, { itemH: 92, render: (i, n) => this.drawRow(i, n), onFocus: (i) => this.sayItem(i) });
+  }
+  drawTab(i, n) {
+    const t = this.tabs[i];
+    if (!n.__c) { n.__c = el('div', 'cat'); n.__ic = el('span', 'ico'); n.__nm = el('div', 'nm'); n.__n = el('div', 'n'); n.__c.append(n.__ic, n.__nm, n.__n); n.appendChild(n.__c); }
+    n.__ic.innerHTML = svg(t.icon); n.__nm.textContent = t.name; n.__n.textContent = t.n >= 0 ? t.n : '';
+    n.__c.classList.toggle('sel', i === this.cv.index && this.zone !== 'cats');
+    n.__c.classList.toggle('primary', !!t.primary);
+  }
+  drawPost(i, n, full) {
+    const f = this.items[i];
+    if (!f) return;
+    posterInit(n);
+    const name = f.eps ? f.name : f.title || f.name;
+    n.__nt.textContent = name; n.__ph.textContent = initials(name);
+    if (n.__img !== f) { n.__pic.style.backgroundImage = ''; n.__ph.style.display = ''; n.__img = null; }
+    const p = Store.progress(f.eps ? 'g#' + f.key : 'g' + f.id);
+    n.__bar.style.display = p && p.d ? '' : 'none';
+    if (p && p.d) n.__bi.style.width = Math.min(100, p.t / p.d * 100) + '%';
+    n.__fv.style.display = 'none';
+    n.__rt.style.display = f.year || f.eps ? '' : 'none';
+    n.__rt.textContent = f.eps ? T('episodes') + ' ' + f.eps.length : f.year || '';
+    if (full) Gd.picture(f.eps ? f.eps[0] : f, (u) => { if (u && n.__i === i && this.items[i] === f) { n.__pic.style.backgroundImage = 'url("' + u + '")'; n.__ph.style.display = 'none'; n.__img = f; } });
+  }
+  drawRow(i, n) {
+    const f = this.items[i];
+    if (!n.__r) { n.__r = el('div', 'row'); n.__ic = el('span', 'ico'); n.__nm = el('div', 'nm'); n.__sm = el('div', 'sm'); n.__r.append(n.__ic, n.__nm, n.__sm); n.appendChild(n.__r); }
+    n.__ic.innerHTML = svg(f.up ? 'back' : f.dir ? 'folder' : f.list ? 'list' : 'film');
+    n.__nm.textContent = f.name;
+    const p = f.dir || f.up || f.list ? null : Store.progress('g' + f.id);
+    n.__sm.textContent = f.up ? '' : f.dir ? '' : f.list ? (this.added(f) ? T('gdListAdded') : T('gdListAdd')) : (p && p.d ? fmtTime(p.t) + ' / ' + fmtTime(p.d) + ' · ' : f.dur ? fmtTime(f.dur) + ' · ' : '') + fmtSize(f.size);
+  }
+  sayItem(i) { const f = this.items[i]; if (f) announce(f.eps ? f.name : f.dir ? T('gdFolder', { x: f.name }) : f.title || f.name); }
+  added(f) { return Store.playlists().find((p) => p.drive === f.id) || null; }
+
+  async show(first) {
+    fillTop(this.root);
+    if (!first) { this.gv.refresh(); this.cv.refresh(); return; }
+    this.start();
+  }
+  // where Drive stands: not on this My PC / not set up / signed out / ready
+  async start(again) {
+    const my = ++this.seq;
+    this.lib = null; this.view = '';
+    this.setItems([], T('loading'), T('gd'));
+    this.setAcct('');
+    let st = null;
+    try { st = await Gd.status(); } catch (e) { if (my === this.seq) this.problem(driveErr(e)); return; }
+    if (my !== this.seq) return;
+    this.st = st;
+    if (!st.configured) { this.problem(T('gdNoConfig')); return; }
+    if (!st.signedIn || !st.allowed) {
+      this.tabs = [{ id: 'signin', name: T('gdSignIn'), icon: 'drive', n: -1, primary: true }];
+      this.cv.setCount(1, 0);
+      this.setItems([], '', T('gd'));
+      this.action(T('gdSignInNote'), T('gdSignIn'));
+      this.setZone('cats');
+      announce(T('gdSignInNote'));
+      return;
+    }
+    this.action('');
+    const a = st.account || {};
+    this.setAcct(a.email || a.name || '');
+    this.makeTabs();
+    this.cv.setCount(this.tabs.length, 0);
+    this.setZone('cats');
+    announce(T('gdLong'));
+    this.load(again);
+  }
+  problem(text) {
+    this.action('');
+    this.setItems([], text, T('gd'));
+    this.tabs = [{ id: 'again', name: T('usbRescan'), icon: 'refresh', n: -1 }];
+    this.cv.setCount(1, 0); this.setZone('cats');
+    announce(text);
+  }
+  // the big button in the middle (Sign in): OK on the side's first entry does the same
+  action(text, label) {
+    const b = this.root.querySelector('.gd-act');
+    clear(b);
+    b.classList.toggle('hidden', !text);
+    if (!text) return;
+    b.appendChild(el('div', 'ic')).innerHTML = svg('drive');
+    b.appendChild(el('p', '', text));
+    if (label) { const x = el('button', 'btn primary f', label); x.addEventListener('click', () => this.signIn()); b.appendChild(x); }
+  }
+  setAcct(t) { this.root.querySelector('.side .acct').textContent = t; }
+  makeTabs() {
+    const L = this.lib;
+    this.tabs = [{ id: 'movies', name: T('usbMovies'), icon: 'film', n: L ? L.movies.length : -1 }, { id: 'shows', name: T('usbShows'), icon: 'series', n: L ? L.shows.length : -1 },
+                 { id: 'mine', name: T('gdMine'), icon: 'folder', n: -1 }, { id: 'shared', name: T('gdShared'), icon: 'people', n: -1 },
+                 { id: 'lists', name: T('gdLists'), icon: 'list', n: this.lists ? this.lists.length : -1 }, { id: 'again', name: T('usbRescan'), icon: 'refresh', n: -1 }];
+    this.cv.setCount(this.tabs.length, Math.min(this.cv.index || 0, this.tabs.length - 1));
+  }
+  async load(again) {
+    const my = this.seq;
+    this.setItems([], T('usbScan', { n: '…' }), T('usbMovies'));
+    try { this.lib = await Gd.library((n) => { if (my === this.seq && !this.items.length) this.root.querySelector('.main .empty').textContent = T('usbScan', { n }); }, again); }
+    catch (e) { if (my === this.seq) this.problem(driveErr(e)); return; }
+    if (my !== this.seq || !this.root.isConnected) return;
+    Gd.playlists().then((l) => { if (my !== this.seq) return; this.lists = l; const t = this.tabs.find((x) => x.id === 'lists'); if (t) { t.n = l.length; this.cv.refresh(); } if (this.view === 'lists') this.showLists(); }, () => {});
+    this.makeTabs();
+    this.view = '';
+    this.pick(true);
+  }
+  pick(force) {
+    const t = this.tabs[this.cv.index];
+    if (!t || (!force && this.view === t.id) || !this.lib) return;
+    if (t.id === 'again' || t.id === 'signin') return;
+    this.view = t.id;
+    if (t.id === 'movies') { this.makeGrid('grid'); this.setItems(this.lib.movies, T('gdNoVideos'), T('usbMovies'), T('usbVideos', { n: this.lib.movies.length })); }
+    else if (t.id === 'shows') { this.makeGrid('grid'); this.setItems(this.lib.shows, T('gdNoShows'), T('usbShows'), T('gdShowsN', { n: this.lib.shows.length })); }
+    else if (t.id === 'lists') this.showLists();
+    else { this.trail = [{ id: t.id === 'shared' ? 'shared' : 'root', name: t.name }]; this.openFolder(); }
+  }
+  showLists() {
+    this.makeGrid('rows');
+    if (!this.lists) { this.setItems([], T('loading'), T('gdLists')); return; }
+    this.setItems(this.lists, T('gdNoLists'), T('gdLists'));
+  }
+  async openFolder() {
+    const view = this.view, at = this.trail[this.trail.length - 1];
+    if (this.zone === 'grid') this.wantGrid = true;             // inside the list: stay in it while the next folder is read
+    this.makeGrid('rows');
+    this.setItems([], T('loading'), this.trail.map((x) => x.name).join(' / '));
+    let l = [];
+    try { l = await Gd.folder(at.id); } catch (e) { if (this.view === view) this.setItems([], driveErr(e), at.name); return; }
+    if (this.view !== view || this.trail[this.trail.length - 1] !== at) return;
+    if (this.trail.length > 1) l = [{ name: '..', up: true }].concat(l);
+    this.setItems(l, T('gdEmpty'), this.trail.map((x) => x.name).join(' / '));
+    if (this.trail.length > 1 && l.length > 1) this.gv.focus(1);          // the first entry, not '..'
+  }
+  setItems(l, emptyText, title, count) {
+    this.items = l;
+    this.root.querySelector('.main h1').textContent = title || '';
+    this.root.querySelector('.main .head .n').textContent = l.length && count ? count : '';
+    const e = this.root.querySelector('.main .empty');
+    e.textContent = emptyText || ''; e.classList.toggle('hidden', !!l.length || !emptyText);
+    this.gv.setCount(l.length, 0);
+    // OK / Right was pressed while the folder was still being read: go into it as soon as it is there
+    if (l.length && this.wantGrid && this.zone === 'cats') { this.wantGrid = false; this.zone = 'grid'; this.cv.active(false); this.cv.refresh(); this.sayItem(0); }
+    this.gv.active(this.zone === 'grid');
+    if (!l.length && this.zone === 'grid') this.setZone('cats');
+  }
+  setZone(z) { this.zone = z; this.cv.active(z === 'cats'); this.gv.active(z === 'grid'); this.cv.refresh(); if (z === 'grid') this.sayItem(this.gv.index); }
+  hide() { this.cv.active(false); this.gv.active(false); }
+  destroy() { this.seq++; this.cv.destroy(); this.gv.destroy(); this.root.remove(); }
+  async signIn() {
+    try { await Gd.signIn(); } catch (e) { if (e && e.code === 'cancelled') return; UI.alert(T('gd'), driveErr(e)); return; }
+    Gd.forget();
+    this.start();
+  }
+  openItem(f) {
+    if (!f) return;
+    if (f.up) { this.trail.pop(); this.openFolder(); return; }
+    if (f.dir) { this.trail.push({ id: f.id, name: f.name }); this.openFolder(); return; }
+    if (f.list) { this.useList(f); return; }
+    if (f.eps) {
+      const seasons = {};
+      f.eps.forEach((e) => { (seasons[e.season] = seasons[e.season] || []).push(Object.assign({}, e, { num: e.ep, title: e.name })); });
+      UI.push(new SeriesScreen({ n: f.name, i: f.key, l: '' }, '', { key: f.key, pre: 'g', label: T('gd'), seasons, picture: (cb) => Gd.picture(f.eps[0], cb), play: (e, rest, at) => playDrive(e, rest, at) }));
+      return;
+    }
+    // a film in a folder: the episodes after it in the same folder come next
+    const rest = f.show && this.view !== 'movies' ? this.items.filter((x) => x.show && fold(x.show) === fold(f.show) && (x.season > f.season || (x.season === f.season && x.ep > f.ep))) : null;
+    playDrive(f, rest, startOf('g' + f.id));
+  }
+  // an M3U file on Drive becomes a playlist of Speedy (read through My PC each time the list is loaded)
+  useList(f) {
+    const had = this.added(f);
+    const p = had || Store.putPlaylist({ kind: 'm3u', name: stripExt(f.name), url: 'gdrive:' + f.id, drive: f.id });
+    if (!had) UI.toast(T('gdListDone', { x: p.name }));
+    usePlaylist(p.id);
+  }
+  async copyToUsb(f) {
+    let ds = [];
+    try { ds = await Usb.drives(); } catch (e) { UI.alert(T('usb'), e && e.code === 'denied' ? T('usbDenied') : errText(e)); return; }
+    if (!ds.length) { UI.toast(T('usbNone')); return; }
+    const go = async (d) => {
+      try {
+        const dir = await MyPC.usb.createFolder(d.path, 'Speedy');
+        await MyPC.copy.toUsb([f.id], dir.path, { ifExists: 'skip' });
+        UI.alert(T('gdCopy'), T('gdCopyStarted', { x: d.name + '/' + dir.name }));
+      } catch (e) { UI.alert(T('gdCopy'), driveErr(e)); }
+    };
+    if (ds.length === 1) go(ds[0]);
+    else UI.menu(T('gdCopy'), ds.map((d) => ({ label: d.name, action: () => go(d) })));
+  }
+  menu(f) {
+    if (!f || f.up) return;
+    if (f.list) {
+      const had = this.added(f);
+      UI.menu(f.name, [{ label: had ? T('gdListUse') : T('gdListAdd'), action: () => this.useList(f) }]);
+      return;
+    }
+    if (f.dir || f.eps) return;
+    const s = startOf('g' + f.id), items = [];
+    if (s) items.push({ label: T('resume', { t: fmtTime(s) }), action: () => playDrive(f, null, s) });
+    items.push({ label: T('fromStart'), action: () => playDrive(f, null, 0) });
+    if (Usb.available() && MyPC.copy) items.push({ label: T('gdCopy'), action: () => this.copyToUsb(f) });
+    items.push({ label: T('info'), action: () => UI.alert(f.title || f.name, f.name + '\n' + T('usbInfo', { size: fmtSize(f.size), ext: ext(f.name).toUpperCase() }) + (f.dur ? ' · ' + fmtTime(f.dur) : '') + '\n' + T('gdInfoNote')) });
+    UI.menu(f.title || f.name, items);
+  }
+  input(a) {
+    if (a === 'back') {
+      if (this.zone === 'grid' && (this.view === 'mine' || this.view === 'shared') && this.trail.length > 1) { this.trail.pop(); this.openFolder(); return true; }
+      if (this.zone === 'grid') { this.setZone('cats'); return true; }
+      return false;
+    }
+    if (this.zone === 'cats') {
+      if (a === 'up' || a === 'down') { this.wantGrid = false; this.cv.move(a); return; }
+      if (a === 'ok' || ((a === 'left' || a === 'right') && sideways(a) > 0)) {
+        this.pickSoon.cancel();
+        const t = this.tabs[this.cv.index];
+        if (!t) return;
+        if (t.id === 'signin') { if (a === 'ok') this.signIn(); return; }
+        if (t.id === 'again') { if (a === 'ok') { Gd.forget(); this.lists = null; this.start(true); } return; }
+        this.pick();
+        if (this.items.length) this.setZone('grid'); else this.wantGrid = true;
+      }
+      return;
+    }
+    if (a === 'up' || a === 'down') { this.gv.move(a); return; }
+    if (a === 'left' || a === 'right') { if (!this.gv.move(a) && sideways(a) < 0) this.setZone('cats'); else if (this.gkind === 'rows' && sideways(a) < 0) this.setZone('cats'); return; }
+    if (a === 'pageUp' || a === 'pageDown') { this.gv.page(a === 'pageUp' ? -1 : 1); return; }
+    const f = this.items[this.gv.index];
+    if (a === 'ok') { this.openItem(f); return; }
+    if (a === 'menu' || a === 'hold') this.menu(f);
   }
 }

@@ -49,19 +49,26 @@ const Store = (() => {
     savePl();
   }
   /* where you stopped: hist[playlist][key] = [seconds, duration, at, name, icon, kind, extra]
-   *   key: 'v<id>' film, 'e<id>' episode, 's<id>' series (its last episode), 'u<path>' USB file */
+   *   key: 'v<id>' film, 'e<id>' episode, 's<id>' series (its last episode), 'u<path>' USB file, 'g<id>' Google Drive file
+ *   ('u…' / 'g…' and the shows 'u#…' / 'g#…' are in hist._, the same for every playlist) */
+  // USB and Google Drive films ('u…', 'g…') are the same whatever IPTV playlist is in use: kept once, in hist._
+  const SHARED = '_';
+  function own(key) { return /^[ug]/.test(key); }
   function h(id) { id = id || cur; return hist[id] || (hist[id] = {}); }
-  function progress(key, plId) { const e = h(plId)[key]; return e ? { t: e[0], d: e[1], at: e[2], name: e[3], icon: e[4], kind: e[5], x: e[6] } : null; }
+  function row(k, e) { return { key: k, t: e[0], d: e[1], at: e[2], name: e[3], icon: e[4], kind: e[5], x: e[6] }; }
+  function progress(key, plId) { const e = (own(key) && h(SHARED)[key]) || h(plId)[key]; return e ? row(key, e) : null; }
   function setProgress(key, o, plId) {
-    const H = h(plId);
+    const H = h(own(key) ? SHARED : plId);
+    if (own(key)) delete h(plId)[key];            // an older copy under a playlist (before 1.1.0)
     if (o === null) delete H[key];
     else H[key] = [Math.floor(o.t || 0), Math.floor(o.d || 0), Date.now(), String(o.name || '').slice(0, 80), String(o.icon || '').slice(0, 220), o.kind || '', o.x || 0];
     trim();
     save('hist', hist);
   }
   function recent(plId, kinds) {
-    const H = h(plId), out = [];
-    for (const k in H) { const e = H[k]; if (!kinds || kinds.indexOf(e[5]) >= 0) out.push({ key: k, t: e[0], d: e[1], at: e[2], name: e[3], icon: e[4], kind: e[5], x: e[6] }); }
+    const out = [], S = h(SHARED), H = h(plId);
+    for (const k in S) { const e = S[k]; if (!kinds || kinds.indexOf(e[5]) >= 0) out.push(row(k, e)); }
+    if (H !== S) for (const k in H) { const e = H[k]; if ((!kinds || kinds.indexOf(e[5]) >= 0) && !(own(k) && S[k])) out.push(row(k, e)); }
     out.sort((a, b) => b.at - a.at);
     return out;
   }

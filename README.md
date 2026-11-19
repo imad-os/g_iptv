@@ -11,13 +11,20 @@ The IPTV app as an app installed on **My PC** (github.com/imad-os/g), Samsung TV
 - USB films and TV shows (`MyPC.usb`): films / shows / folders, clean names, next episode, subtitle files next
   to the video (`.srt .vtt .ass .ssa .sub`, `Movie.ar.srt`, a `Subs/` folder), Continue watching.
 - Subtitles found online (through the Cloudflare Worker iptv-lists.mypc-app.workers.dev), Arabic Windows-1256 files, style, delay.
+- **Google Drive** (through My PC only, `MyPC.drive`, API 14; `js/drive.js`): one sign-in in My PC (Speedy never gets a token).
+  Films and TV shows of the whole Drive (names cleaned and grouped like USB), My Drive folders, Shared with me, and `.m3u` files
+  that become playlists (read through My PC). Google's picture of each video (`thumbnailLink` through My PC, 320 px, one at a time).
+  A Drive film plays in the **web player**: the TV's player cannot send Google's sign-in, so `sw.js` (My PC's `drive-sw.js`) answers
+  the `<video>`'s Range requests with 2 MB pieces read through My PC (seeking works, nothing stored). Without a service worker only
+  files up to 200 MB play (downloaded first). Options > Copy to the USB drive (`MyPC.copy`) for files the web player cannot play.
+  Subtitle files beside the video on Drive, next episode, Continue watching (USB and Drive progress is kept for every playlist).
 - Online subtitles: Settings > Subtitle language and Subtitle provider (also in the player's Subtitles menu), both Auto by
   default. Auto language = Arabic, then English (the server decides); Auto provider = the admin's default provider. The provider
   list comes from the Worker's `GET /subtitleProviders` (only providers with a key, kept 12 h); a search sends `lang` / `provider`
   to `POST /fetchSubtitles/` only when not Auto. Every server error (`{ status: 'error', code, message }`, or a provider's
   `errors` with no results) is shown to the user as the server wrote it. API: README "Subtitles API for apps" in imad-os/fb `cloudflare/`.
 - One theme for the app and the player (Settings > Theme).
-- Remote: OK, Back, arrows, CH + / CH −, Play / Pause and the media keys; controllers: B OK, A back, X favorite,
+- Remote: OK, Back, arrows, CH + / CH −, Play / Pause and the media keys; controllers: A OK, B back, X favorite,
   Y search, + options, L / R page.
 
 ## Install
@@ -28,4 +35,5 @@ with the address `https://imad-os.github.io/g_iptv/`; `mypc-app.json` describes 
 - `node tests/run.mjs` (Playwright, Chromium; needs ffmpeg for the test videos): the app in a browser.
   `SPEEDY_SHOTS=<folder>` saves screenshots, `SPEEDY_ONLY=main|ar|m3u` runs one part.
 - Inside My PC (TV player, USB drive, the remote's keys, My PC's keyboard): with this repo cloned next to My PC's (`../g_iptv`, or `SPEEDY_DIR`), in My PC's checkout
-  `MYPC_ONLY=speedy node tests/run-tests.mjs`.
+  `MYPC_ONLY=speedy node tests/run-tests.mjs` (section 50b = Google Drive with a fake Google; it serves this repo on a local https
+  server so `sw.js` really runs, needs openssl and ffmpeg).

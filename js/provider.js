@@ -125,6 +125,13 @@ const Provider = (() => {
     let got = null;
     async function all() {
       if (got) return got;
+      // a playlist file on Google Drive (Speedy's Drive screen): read through My PC
+      if (pl.drive) {
+        let buf;
+        try { buf = await Gd.readList(pl.drive); } catch (e) { throw Net.err(e.code === 'too-big' ? 'too-big' : e.code === 'timeout' ? 'timeout' : e.code === 'signed-out' || e.code === 'reauth' || e.code === 'denied' ? 'auth' : 'network', e.message); }
+        got = (await parse(buf, 'm3u')).m3u;
+        return got;
+      }
       let r;
       try { r = await Net.get(pl.url, { type: 'arraybuffer', timeout: 240000 }); } catch (e) { throw Net.err(e.code === 'too-big' ? 'too-big' : e.code === 'timeout' ? 'timeout' : 'network', e.message); }
       if (r.status === 401 || r.status === 403) throw Net.err('auth', 'HTTP ' + r.status);

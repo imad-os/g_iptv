@@ -9,9 +9,10 @@
  *   Player.preview(spec, boxEl)    small, in a box of the Live TV screen; Player.full() makes it full screen, Back brings it back
  *   Player.stopPreview()           Player.current()   Player.onZap(fn)
  *
- * spec = { kind: 'live' | 'vod' | 'series' | 'usb' | 'usbep' (an episode of a USB show), id, title, sub, icon, url, key (progress key), start (s), live,
+ * spec = { kind: 'live' | 'vod' | 'series' | 'usb' | 'usbep' (an episode of a USB show) | 'gdrive' | 'gdriveep' (Google Drive), id, title, sub, icon, url, key (progress key), start (s), live,
  *          list + index (live: channels to zap through), next() -> spec | null (episodes), meta + metaKind (online subtitles),
- *          files: [{ label, lang, load() -> cues }] (subtitle files next to a USB video), fav: { kind, id } }
+ *          files: [{ label, lang, load() -> cues }] (subtitle files next to a USB video), fav: { kind, id },
+ *          engine: 'web' (only the web player), prepare(onProgress) -> sets url (and release()) when it starts }
  * Progress is saved every 15 s, on pause and on close (Store.setProgress). */
 'use strict';
 const Player = (() => {
@@ -192,10 +193,19 @@ const Player = (() => {
   }
   function failed(code) {
     clearTimeout(retryT); retry = 0;
-    center('msg', code === 'format' ? T('formatFail') : code === 'not-found' ? T('notFound') : code === 'network' || code === 'timeout' ? T('lostNet') : T('streamFail'));
+    const msg = failText(code);
+    center('msg', msg);
     if (mode !== 'full') return;
-    UI.dialog(T('errTitle'), code === 'format' ? T('formatFail') : code === 'not-found' ? T('notFound') : code === 'network' || code === 'timeout' ? T('lostNet') : T('streamFail'),
+    UI.dialog(T('errTitle'), msg,
       [{ label: T('close'), action: () => closeFull() }, { label: T('retry'), primary: true, focus: true, action: () => reopen() }], { onBack: () => closeFull() });
+  }
+  function failText(code) {
+    const drive = spec && spec.engine === 'web' && /^g/.test(spec.key || '');
+    if (drive && code === 'format') return T('gdFormat');
+    if (code === 'too-big') return T('gdTooBig');
+    if (code === 'signed-out' || code === 'reauth') return T('gdSignedOut');
+    if (code === 'denied') return T('gdDenied');
+    return code === 'format' ? T('formatFail') : code === 'not-found' ? T('notFound') : code === 'network' || code === 'timeout' ? T('lostNet') : T('streamFail');
   }
   function reopen() { if (!spec) return; start(spec, spec.live ? 0 : (st.t > 2 ? st.t : spec.start || 0), true); }
   window.addEventListener('online', () => { if (spec && retry) { clearTimeout(retryT); reopen(); } });
@@ -204,6 +214,7 @@ const Player = (() => {
   async function start(s, at, again) {
     const my = ++openSeq;
     if (!again) {
+      if (spec && spec !== s) letGo(spec);
       spec = s; st.t = at || 0; st.d = 0; st.ended = false; cues = null; cueIdx = -1; subDelay = 0; embOn = false; nextShown = false; nextCancel = false;
       drawSub(''); hideNext(); retry = 0; clearTimeout(retryT);
     }
@@ -214,6 +225,12 @@ const Player = (() => {
     eng = ne;
     center('spin');
     drawInfo();
+    // the address is made when it plays (a Google Drive film: a stream through My PC; downloaded first where no worker runs)
+    if (s.prepare && !s.url) {
+      try { await s.prepare((p) => { if (my === openSeq) center('spin', T('gdLoading', { p: Math.round(p * 100) })); }); }
+      catch (e) { if (my !== openSeq) return; onError((e && e.code) || 'player'); return; }
+      if (my !== openSeq) return;
+    }
     try {
       const r = await eng.open(s.url, { start: at || 0, live: !!s.live, rect: mode === 'preview' ? box : null, fit: Store.prefs().fit || 'fit' }, my);
       if (my !== openSeq) return;
@@ -233,6 +250,7 @@ const Player = (() => {
   }
   // Settings > Player: auto (the TV's player when there is one), tv, web. A USB file is a path on the TV: only the TV's player reads it
   function pickEngine(s) {
+    if (s.engine === 'web') return WEB;          // a Google Drive film: only the web player can read it (through sw.js and My PC)
     const want = Store.prefs().engine || 'auto', usb = /^\/opt\/media\//.test(s.url || '');
     if (usb || want !== 'web') {
       if (tvOk()) { if (want === 'web' && usb && !s.__told) { s.__told = 1; UI.toast(T('engUsbTv')); } return TV; }
@@ -241,8 +259,11 @@ const Player = (() => {
     }
     return WEB;
   }
+  // a spec that holds something open (a Google Drive stream): let it go when another video takes its place or the player closes
+  function letGo(s) { if (s && s.release) { const r = s.release; s.release = null; s.url = ''; try { r(); } catch (e) {} } }
   function stopEngine() {
     openSeq++;
+    letGo(spec);
     clearTimeout(retryT); retry = 0;
     if (eng) { try { const p = eng.stop(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
     document.documentElement.classList.remove('video');

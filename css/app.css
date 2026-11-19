@@ -353,3 +353,15 @@ html.video .pv-box .pv-msg { background: transparent; }
 .vi.f .row.playing .nm { color: var(--on-accent); }
 #subs span, .subs-pv span { unicode-bidi: plaintext; }
 .vi.f .row.ep .no { color: var(--on-accent); }
+
+/* ---------- Google Drive (through My PC) ---------- */
+.gdrive .side .acct { position: absolute; top: 86px; left: 40px; right: 30px; font-size: 22px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gdrive .side .vl { top: 132px; }
+.cat.primary { box-shadow: inset 0 0 0 3px var(--accent); }
+.gd-act { position: absolute; left: 60px; right: 60px; top: 300px; display: flex; flex-direction: column; align-items: center; gap: 26px; text-align: center; }
+.gd-act .ic svg { width: 120px; height: 120px; fill: var(--accent2); }
+.gd-act p { margin: 0; max-width: 1000px; font-size: 32px; line-height: 1.4; color: var(--muted); }
+/* no playlist yet: the USB / Google Drive tiles go under the welcome text and its buttons, never over them */
+.home.nopl .home-tiles { top: 590px; height: 260px; grid-template-columns: repeat(auto-fill, 460px) !important; }
+.home.nopl .tile .ic { width: 80px; height: 80px; }
+.home.nopl .tile .tt { font-size: 40px; }
