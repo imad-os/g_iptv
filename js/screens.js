@@ -1053,11 +1053,9 @@ function driveErr(e) {
 // a Drive film / episode for the player: the web player, the address made when it starts (Gd.stream), the subtitle files beside it
 function driveSpec(f, start, rest) {
   const s = { kind: 'gdrive', id: f.id, title: f.show || f.title || f.name, sub: f.show ? 'S' + pad2(f.season) + 'E' + pad2(f.ep) : (f.year || '') + (f.size ? (f.year ? ' · ' : '') + fmtSize(f.size) : ''),
-              icon: '', url: '', key: 'g' + f.id, start: start || 0, files: [], engine: 'web', name: f.name,
+              icon: '', url: '', key: 'g' + f.id, start: start || 0, files: [], engine: 'web',
               meta: f.show ? { name: f.show, season: f.season, episode_num: f.ep } : { name: f.title || stripExt(f.name), year: f.year || '' }, metaKind: f.show ? 'series' : 'movie',
               prepare: async (onProgress) => { const st = await Gd.stream(f, onProgress); s.url = st.url; s.release = () => st.close(); } };
-  // on a TV: the TV's own player, My PC makes the link (the TV's <video> never goes through sw.js)
-  if (Gd.tv()) { s.engine = 'tv'; s.url = 'drive:' + f.id; delete s.prepare; }
   // an episode: Continue watching keeps the show once (key "g#<show>", the episode's id in x)
   if (f.show) { s.kind = 'gdriveep'; s.parentKey = 'g#' + fold(f.show); s.parentTitle = f.show; s.parentKind = 'gdrive'; }
   Gd.spec(f).then((x) => { s.files.push.apply(s.files, x.files); }).catch(() => {});

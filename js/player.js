@@ -12,7 +12,7 @@
  * spec = { kind: 'live' | 'vod' | 'series' | 'usb' | 'usbep' (an episode of a USB show) | 'gdrive' | 'gdriveep' (Google Drive), id, title, sub, icon, url, key (progress key), start (s), live,
  *          list + index (live: channels to zap through), next() -> spec | null (episodes), meta + metaKind (online subtitles),
  *          files: [{ label, lang, load() -> cues }] (subtitle files next to a USB video), fav: { kind, id },
- *          engine: 'web' (only the web player) | 'tv' (only the TV's player: Google Drive on a TV, url 'drive:<id>'), name (file name), prepare(onProgress) -> sets url (and release()) when it starts }
+ *          engine: 'web' (only the web player), prepare(onProgress) -> sets url (and release()) when it starts }
  * Progress is saved every 15 s, on pause and on close (Store.setProgress). */
 'use strict';
 const Player = (() => {
@@ -31,7 +31,7 @@ const Player = (() => {
     name: 'tv',
     async open(url, o) {
       document.documentElement.classList.add('video');
-      const r = await MyPC.video.open(url, { start: o.start || 0, live: !!o.live, rect: o.rect || null, fit: o.fit || 'fit', ua: Store.prefs().ua || '', name: (spec && spec.name) || '' });
+      const r = await MyPC.video.open(url, { start: o.start || 0, live: !!o.live, rect: o.rect || null, fit: o.fit || 'fit', ua: Store.prefs().ua || '' });
       return { d: (r && r.duration) || 0 };
     },
     play() { return MyPC.video.play(); },
@@ -200,7 +200,7 @@ const Player = (() => {
       [{ label: T('close'), action: () => closeFull() }, { label: T('retry'), primary: true, focus: true, action: () => reopen() }], { onBack: () => closeFull() });
   }
   function failText(code) {
-    const drive = spec && /^gdrive/.test(spec.kind || '');
+    const drive = spec && spec.engine === 'web' && /^g/.test(spec.key || '');
     if (drive && code === 'format') return T('gdFormat');
     if (code === 'too-big') return T('gdTooBig');
     if (code === 'signed-out' || code === 'reauth') return T('gdSignedOut');
@@ -250,8 +250,7 @@ const Player = (() => {
   }
   // Settings > Player: auto (the TV's player when there is one), tv, web. A USB file is a path on the TV: only the TV's player reads it
   function pickEngine(s) {
-    if (s.engine === 'web') return WEB;          // a Google Drive film on a computer / phone: the web player (through sw.js and My PC)
-    if (s.engine === 'tv' && tvOk()) return TV;  // a Google Drive film on a TV: 'drive:<id>', only the TV's player (My PC adds the sign-in)
+    if (s.engine === 'web') return WEB;          // a Google Drive film: only the web player can read it (through sw.js and My PC)
     const want = Store.prefs().engine || 'auto', usb = /^\/opt\/media\//.test(s.url || '');
     if (usb || want !== 'web') {
       if (tvOk()) { if (want === 'web' && usb && !s.__told) { s.__told = 1; UI.toast(T('engUsbTv')); } return TV; }
