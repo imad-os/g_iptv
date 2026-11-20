@@ -11,6 +11,9 @@
  *   Gd.spec(f)                 the subtitle files next to a video (same folder, read when chosen)
  *   Gd.picture(f, cb)          Google's own picture of a video (thumbnailLink), 320 px wide, one at a time; a blob: URL or ''
  *   Gd.stream(f, onProgress)   { url, mode, close() } for the web player: Range pieces through My PC (sw.js), else a download
+ *   Gd.tv()                    true on a TV with My PC 24+: the TV's own player plays 'drive:<id>' (every format, seeking).
+ *                              The TV's <video> does not go through sw.js (imad 2026-11-20: "Drive videos don't play"), so on
+ *                              a TV only this way works.
  * file = { id, name, size, mime, parent, title, year, show, season, ep, thumb, dur } */
 'use strict';
 const Gd = (() => {
@@ -177,6 +180,7 @@ const Gd = (() => {
     const meta = { id: f.id, name: f.name, size: String(f.size || ''), mimeType: f.mime };
     return MyPC.drive.stream(meta, { worker: ok ? 'sw.js' : '', onProgress, max: BLOB_MAX });
   }
+  function tv() { try { return !!(MyPC.video && MyPC.video.drive && MyPC.video.drive()); } catch (e) { return false; } }
   // a playlist file on Drive, for Provider (M3U): the whole file through My PC
   async function readList(id) { return (await MyPC.drive.download(id, { max: 100 * 1024 * 1024 })).buf; }
 
@@ -188,5 +192,5 @@ const Gd = (() => {
   }
 
   function forget() { dirs.clear(); metas.clear(); lib = null; lists = null; }
-  return { available, status, signIn, get, folder, library, playlists, spec, after, picture, stream, readList, forget, isVideo, FOLDER };
+  return { available, status, signIn, get, folder, library, playlists, spec, after, picture, stream, tv, readList, forget, isVideo, FOLDER };
 })();
