@@ -2,7 +2,7 @@
  *   OK (B on a controller) = ok · hold OK 0.6 s = hold (options) · Back / A / Esc = back · X = favorite · Y = search
  *   + (Start) = menu · CH + / CH − and L / R = pageUp / pageDown · the remote's media keys = playPause, mediaFf ... */
 'use strict';
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.2';
 (() => {
   const HOLD = window.__speedyHold || 600;     // tests make it longer: a slow test browser can hold a key's release back
   let okAt = 0, holdT = 0, held = false, started = false;
